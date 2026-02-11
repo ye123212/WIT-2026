@@ -1,4 +1,5 @@
 const STORAGE = {
+  accounts: 'witAccounts', authSession: 'witAuthSession', backendMode: 'witBackendMode',
   profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', theme: 'witTheme',
   meetCount: 'witMeetCount', reflectionHistory: 'witReflectionHistory', weeklyIntent: 'witWeeklyIntent', dailyPromptAnswers:'witDailyPromptAnswers', trust:'witTrust', userConnections: 'witUserConnections'
 };
@@ -42,7 +43,9 @@ const state = {
 };
 
 
-const USE_BACKEND = new URLSearchParams(window.location.search).get('backend') === '1';
+const backendParam = new URLSearchParams(window.location.search).get('backend');
+const storedBackendMode = localStorage.getItem(STORAGE.backendMode);
+const USE_BACKEND = backendParam === '1' ? true : backendParam === '0' ? false : storedBackendMode === '1';
 
 const apiClient = window.createApiClient({
   baseUrl: '/api',
@@ -189,6 +192,12 @@ function createSessionToken() {
   return `session_${uuid()}`;
 }
 
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function initialsForName(name = '') {
   return (name || 'U')
     .split(/\s+/)
@@ -226,17 +235,29 @@ function renderAccountOverview() {
 }
 
 function setupAccountAuth(wizardControls) {
-  const loginCard = document.getElementById('loginCard');
+  const authCard = document.getElementById('authCard');
   const accountOverviewCard = document.getElementById('accountOverviewCard');
   const loginForm = document.getElementById('loginForm');
-  const googleLoginBtn = document.getElementById('googleLoginBtn');
-  const appleLoginBtn = document.getElementById('appleLoginBtn');
+  const createAccountForm = document.getElementById('createAccountForm');
+  const authError = document.getElementById('authError');
   const logoutBtn = document.getElementById('logoutBtn');
   const editAccountProfileBtn = document.getElementById('editAccountProfileBtn');
+  const authModeTabs = document.querySelectorAll('[data-auth-tab]');
+
+  const setAuthError = (msg = '') => {
+    authError.textContent = msg;
+    authError.classList.toggle('hidden', !msg);
+  };
+
+  const switchAuthTab = (tabName) => {
+    authModeTabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.authTab === tabName));
+    document.querySelectorAll('.auth-panel').forEach((panel) => panel.classList.toggle('hidden', panel.dataset.authPanel !== tabName));
+    setAuthError('');
+  };
 
   const renderAuthState = () => {
     const isLoggedIn = Boolean(state.authSession?.token);
-    loginCard.classList.toggle('hidden', isLoggedIn);
+    authCard.classList.toggle('hidden', isLoggedIn);
     accountOverviewCard.classList.toggle('hidden', !isLoggedIn);
 
     if (!isLoggedIn) {
@@ -251,44 +272,77 @@ function setupAccountAuth(wizardControls) {
     saveState();
   };
 
-  const handleCredentialLogin = ({ email, password, provider = 'password' }) => {
+  const handleLogin = async ({ email, password }) => {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = state.accountStore[normalizedEmail];
+    const passwordHash = await hashPassword(password);
+    const storedPasswordHash = existing?.passwordHash;
+    const isLegacyPasswordMatch = existing?.password === password;
 
-    if (existing && existing.password !== password) {
-      toast('Incorrect password for this account.');
+    if (!existing || (!isLegacyPasswordMatch && storedPasswordHash !== passwordHash)) {
+      setAuthError('No account found with these credentials');
       return;
     }
 
-    const account = existing || {
+    if (isLegacyPasswordMatch && !storedPasswordHash) {
+      existing.passwordHash = passwordHash;
+      delete existing.password;
+      state.accountStore[normalizedEmail] = existing;
+    }
+
+    state.authSession = { token: createSessionToken(), email: normalizedEmail, provider: 'password' };
+    syncProfileFromAccount();
+    renderAuthState();
+    toast('Logged in successfully.');
+  };
+
+  const handleCreateAccount = async ({ email, password, repeatPassword }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (password !== repeatPassword) {
+      setAuthError('Passwords do not match');
+      return;
+    }
+
+    if (state.accountStore[normalizedEmail]) {
+      setAuthError('Email already in use');
+      return;
+    }
+
+    const account = {
       email: normalizedEmail,
-      password,
+      passwordHash: await hashPassword(password),
       username: normalizedEmail.split('@')[0],
       avatar: initialsForName(normalizedEmail),
       preferences: {}
     };
 
     state.accountStore[normalizedEmail] = account;
-    state.authSession = { token: createSessionToken(), email: normalizedEmail, provider };
+    state.authSession = { token: createSessionToken(), email: normalizedEmail, provider: 'password' };
     syncProfileFromAccount();
     renderAuthState();
-    toast(existing ? 'Logged in successfully.' : 'Account created and logged in.');
+    toast('Account created and logged in.');
   };
 
-  loginForm.addEventListener('submit', (event) => {
+  loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(loginForm).entries());
-    handleCredentialLogin({ email: data.email || '', password: data.password || '' });
-    loginForm.reset();
+    await handleLogin({ email: data.email || '', password: data.password || '' });
   });
 
-  const socialLogin = (provider) => {
-    const fakeEmail = `${provider.toLowerCase()}_user@social.local`;
-    handleCredentialLogin({ email: fakeEmail, password: `${provider.toLowerCase()}_oauth`, provider });
-  };
+  createAccountForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(createAccountForm).entries());
+    await handleCreateAccount({
+      email: data.email || '',
+      password: data.password || '',
+      repeatPassword: data.repeatPassword || ''
+    });
+  });
 
-  googleLoginBtn.addEventListener('click', () => socialLogin('google'));
-  appleLoginBtn.addEventListener('click', () => socialLogin('apple'));
+  authModeTabs.forEach((btn) => {
+    btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
+  });
 
   logoutBtn.addEventListener('click', () => {
     saveCurrentAccount();
@@ -302,6 +356,7 @@ function setupAccountAuth(wizardControls) {
     wizardControls.openWizard();
   });
 
+  switchAuthTab('login');
   renderAuthState();
 }
 
@@ -343,6 +398,7 @@ function setupWizard() {
   const savedProfileCard = document.getElementById('savedProfileCard');
   const savedProfileText = document.getElementById('savedProfileText');
   const editProfileBtn = document.getElementById('editProfileBtn');
+  const profileLockedCard = document.getElementById('profileLockedCard');
 
   const fillFormFromProfile = () => {
     if (!state.profile) return;
@@ -377,9 +433,11 @@ function setupWizard() {
     accountSetupFlow.classList.add('hidden');
     savedProfileCard.classList.add('hidden');
     createAccountCard.classList.add('hidden');
+    profileLockedCard.classList.remove('hidden');
   };
 
   const showSignedInState = () => {
+    profileLockedCard.classList.add('hidden');
     if (state.profile) showSavedState();
     else showCreateState();
   };
@@ -1037,6 +1095,8 @@ function setupDashboardData() {
 function setupThemeAndReset() {
   document.documentElement.setAttribute('data-theme', state.theme);
   const t = document.getElementById('themeToggle');
+  const backendToggle = document.getElementById('backendToggle');
+
   t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
   t.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -1044,6 +1104,27 @@ function setupThemeAndReset() {
     t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
     saveState();
   });
+
+  if (backendToggle) {
+    const renderBackendToggle = () => {
+      backendToggle.textContent = USE_BACKEND ? 'Backend: ON' : 'Backend: OFF';
+      backendToggle.classList.toggle('active', USE_BACKEND);
+      backendToggle.setAttribute('aria-pressed', USE_BACKEND ? 'true' : 'false');
+      backendToggle.title = USE_BACKEND
+        ? 'Live backend mode is enabled. Click to switch to frontend-only mode.'
+        : 'Frontend-only mode is enabled (backend bypassed). Click to enable backend mode.';
+    };
+
+    renderBackendToggle();
+
+    backendToggle.addEventListener('click', () => {
+      const nextMode = USE_BACKEND ? '0' : '1';
+      localStorage.setItem(STORAGE.backendMode, nextMode);
+      toast(nextMode === '1' ? 'Backend mode enabled. Reloading…' : 'Frontend-only mode enabled. Reloading…');
+      setTimeout(() => location.reload(), 250);
+    });
+  }
+
   document.getElementById('resetBtn').addEventListener('click', () => { Object.values(STORAGE).forEach((k) => localStorage.removeItem(k)); location.reload(); });
 }
 

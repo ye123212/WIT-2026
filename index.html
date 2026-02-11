@@ -21,6 +21,7 @@
     <div class="header-actions">
       <div class="stats-pill"><span id="xpStat">XP 0</span><span id="streakStat">🔥 0</span></div>
       <label class="toggle-wrap"><span class="small">Theme</span><button id="themeToggle" class="icon-btn" type="button">🌙</button></label>
+      <button id="backendToggle" class="btn ghost" type="button" aria-pressed="false">Backend: OFF</button>
       <button id="resetBtn" class="btn ghost" type="button">Reset</button>
     </div>
   </header>
@@ -35,20 +36,32 @@
 
     <section id="setup" class="panel active" role="tabpanel">
       <h2>Account Overview</h2>
-      <article class="card" id="loginCard">
-        <h3>Login</h3>
-        <p class="small">Sign in with email + password. Social login buttons are included as optional quick sign in.</p>
-        <form id="loginForm" class="grid cols-2">
+      <article class="card" id="authCard">
+        <h3>Account Access</h3>
+        <p class="small">Choose Login or Create Account to continue.</p>
+        <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button class="btn auth-tab active" data-auth-tab="login" type="button">Login</button>
+          <button class="btn auth-tab" data-auth-tab="create" type="button">Create Account</button>
+        </div>
+
+        <form id="loginForm" class="grid cols-2 auth-panel" data-auth-panel="login">
           <label>Email<input required type="email" name="email" placeholder="you@example.com" /></label>
           <label>Password<input required type="password" name="password" placeholder="••••••••" minlength="6" /></label>
           <div class="button-row full">
-            <button class="btn primary" type="submit">Login / Create Account</button>
+            <button class="btn primary" type="submit">Login</button>
           </div>
         </form>
-        <div class="button-row social-login-row">
-          <button id="googleLoginBtn" class="btn ghost" type="button">Continue with Google</button>
-          <button id="appleLoginBtn" class="btn ghost" type="button">Continue with Apple</button>
-        </div>
+
+        <form id="createAccountForm" class="grid cols-2 auth-panel hidden" data-auth-panel="create">
+          <label>Email<input required type="email" name="email" placeholder="you@example.com" /></label>
+          <label>Password<input required type="password" name="password" placeholder="••••••••" minlength="6" /></label>
+          <label class="full">Repeat password<input required type="password" name="repeatPassword" placeholder="••••••••" minlength="6" /></label>
+          <div class="button-row full">
+            <button class="btn primary" type="submit">Create Account</button>
+          </div>
+        </form>
+
+        <p id="authError" class="auth-error hidden" role="alert"></p>
       </article>
 
       <article class="card hidden" id="accountOverviewCard">
@@ -65,6 +78,12 @@
           <button id="editAccountProfileBtn" class="btn primary" type="button">Edit Profile</button>
           <button id="logoutBtn" class="btn ghost" type="button">Logout</button>
         </div>
+      </article>
+
+
+      <article class="card hidden" id="profileLockedCard">
+        <h3>Your Profile</h3>
+        <p class="small">Please log in to view your profile.</p>
       </article>
 
       <article class="card" id="createAccountCard">
