@@ -272,6 +272,23 @@ function forceReflectionBeforeNextMeet() {
   toast('Cold start mode: submit reflection before next meet.');
 }
 
+
+function showAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.remove('hidden');
+  input.disabled = false;
+  input.value = '';
+}
+
+function hideAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.add('hidden');
+  input.disabled = true;
+  input.value = '';
+}
+
 function startMeet() {
   if (!state.profile) return toast('Complete profile first.');
   if (state.requireReflection) return toast('Please submit pending reflection first.');
@@ -285,8 +302,7 @@ function startMeet() {
   state.meetId = uuid();
   state.meetSeconds = 0;
   document.getElementById('currentPrompt').textContent = prompts[0];
-  document.getElementById('promptAnswerInput').disabled = false;
-  document.getElementById('promptAnswerInput').value = '';
+  showAnswerInput();
   document.getElementById('respondPromptBtn').disabled = false;
   document.getElementById('reportBtn').disabled = false;
   emitEvent('MATCH_MADE', { meet_id: state.meetId, score });
@@ -309,8 +325,7 @@ function startMeet() {
 function endMeet(reason) {
   clearInterval(state.timer);
   document.getElementById('respondPromptBtn').disabled = true;
-  document.getElementById('promptAnswerInput').disabled = true;
-  document.getElementById('promptAnswerInput').value = '';
+  hideAnswerInput();
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
@@ -324,7 +339,8 @@ function setupMeet() {
     const answer = answerInput.value.trim();
     if (!answer) return toast('Please type an answer before submitting.');
     document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
-    answerInput.value = '';
+    hideAnswerInput();
+    document.getElementById('respondPromptBtn').disabled = true;
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
