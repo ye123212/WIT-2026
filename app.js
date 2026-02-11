@@ -1,6 +1,16 @@
 const STORAGE = {
-  profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', theme: 'witTheme',
-  meetCount: 'witMeetCount', reflectionHistory: 'witReflectionHistory', weeklyIntent: 'witWeeklyIntent', dailyPromptAnswers:'witDailyPromptAnswers', trust:'witTrust'
+  profile: 'witProfile',
+  authSession: 'witAuthSession',
+  accounts: 'witAccounts',
+  xp: 'witXp',
+  streak: 'witStreak',
+  badges: 'witBadges',
+  theme: 'witTheme',
+  meetCount: 'witMeetCount',
+  reflectionHistory: 'witReflectionHistory',
+  weeklyIntent: 'witWeeklyIntent',
+  dailyPromptAnswers:'witDailyPromptAnswers',
+  trust:'witTrust'
 };
 
 const XP_REWARDS = { completeReflection: 20, detailedFeedback: 10, dailyReflectionStreak: 5 };
@@ -16,6 +26,8 @@ const db = {
 };
 
 const state = {
+  accountStore: JSON.parse(localStorage.getItem(STORAGE.accounts) || '{}'),
+  authSession: JSON.parse(localStorage.getItem(STORAGE.authSession) || 'null'),
   profile: JSON.parse(localStorage.getItem(STORAGE.profile) || 'null'),
   xp: Number(localStorage.getItem(STORAGE.xp) || 0),
   streak: Number(localStorage.getItem(STORAGE.streak) || 0),
@@ -69,6 +81,8 @@ const prompts = [
 
 function saveState() {
   localStorage.setItem(STORAGE.profile, JSON.stringify(state.profile));
+  localStorage.setItem(STORAGE.accounts, JSON.stringify(state.accountStore));
+  localStorage.setItem(STORAGE.authSession, JSON.stringify(state.authSession));
   localStorage.setItem(STORAGE.xp, String(state.xp));
   localStorage.setItem(STORAGE.streak, String(state.streak));
   localStorage.setItem(STORAGE.badges, JSON.stringify(state.badges));
@@ -148,7 +162,135 @@ function renderBadges() {
 }
 
 function getUserId() {
+  const account = getCurrentAccount();
+  if (account?.username) return account.username;
   return state.profile?.nickname || 'anonymous_user';
+}
+
+
+function getCurrentAccount() {
+  if (!state.authSession?.email) return null;
+  return state.accountStore[state.authSession.email] || null;
+}
+
+function createSessionToken() {
+  return `session_${uuid()}`;
+}
+
+function initialsForName(name = '') {
+  return (name || 'U')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+}
+
+function syncProfileFromAccount() {
+  const account = getCurrentAccount();
+  if (!account) return;
+  if (account.preferences && Object.keys(account.preferences).length) {
+    state.profile = { ...account.preferences };
+  }
+}
+
+function saveCurrentAccount() {
+  const account = getCurrentAccount();
+  if (!account) return;
+  const nickname = state.profile?.nickname || account.username;
+  account.username = nickname || account.username || account.email.split('@')[0];
+  account.avatar = initialsForName(account.username);
+  account.preferences = state.profile ? { ...state.profile } : account.preferences;
+  state.accountStore[account.email] = account;
+}
+
+function renderAccountOverview() {
+  const account = getCurrentAccount();
+  if (!account) return;
+  document.getElementById('accountOverviewName').textContent = account.username || account.email;
+  document.getElementById('accountOverviewEmail').textContent = account.email;
+  document.getElementById('accountAvatar').textContent = account.avatar || initialsForName(account.username || account.email);
+  document.getElementById('accountPreferencesText').textContent = summarizeProfile(state.profile || account.preferences || {});
+}
+
+function setupAccountAuth(wizardControls) {
+  const loginCard = document.getElementById('loginCard');
+  const accountOverviewCard = document.getElementById('accountOverviewCard');
+  const loginForm = document.getElementById('loginForm');
+  const googleLoginBtn = document.getElementById('googleLoginBtn');
+  const appleLoginBtn = document.getElementById('appleLoginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const editAccountProfileBtn = document.getElementById('editAccountProfileBtn');
+
+  const renderAuthState = () => {
+    const isLoggedIn = Boolean(state.authSession?.token);
+    loginCard.classList.toggle('hidden', isLoggedIn);
+    accountOverviewCard.classList.toggle('hidden', !isLoggedIn);
+
+    if (!isLoggedIn) {
+      wizardControls.showSignedOutState();
+      return;
+    }
+
+    syncProfileFromAccount();
+    renderAccountOverview();
+    wizardControls.showSignedInState();
+    wizardControls.fillFormFromProfile();
+    saveState();
+  };
+
+  const handleCredentialLogin = ({ email, password, provider = 'password' }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = state.accountStore[normalizedEmail];
+
+    if (existing && existing.password !== password) {
+      toast('Incorrect password for this account.');
+      return;
+    }
+
+    const account = existing || {
+      email: normalizedEmail,
+      password,
+      username: normalizedEmail.split('@')[0],
+      avatar: initialsForName(normalizedEmail),
+      preferences: {}
+    };
+
+    state.accountStore[normalizedEmail] = account;
+    state.authSession = { token: createSessionToken(), email: normalizedEmail, provider };
+    syncProfileFromAccount();
+    renderAuthState();
+    toast(existing ? 'Logged in successfully.' : 'Account created and logged in.');
+  };
+
+  loginForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(loginForm).entries());
+    handleCredentialLogin({ email: data.email || '', password: data.password || '' });
+    loginForm.reset();
+  });
+
+  const socialLogin = (provider) => {
+    const fakeEmail = `${provider.toLowerCase()}_user@social.local`;
+    handleCredentialLogin({ email: fakeEmail, password: `${provider.toLowerCase()}_oauth`, provider });
+  };
+
+  googleLoginBtn.addEventListener('click', () => socialLogin('google'));
+  appleLoginBtn.addEventListener('click', () => socialLogin('apple'));
+
+  logoutBtn.addEventListener('click', () => {
+    saveCurrentAccount();
+    state.authSession = null;
+    saveState();
+    renderAuthState();
+    toast('Logged out.');
+  });
+
+  editAccountProfileBtn.addEventListener('click', () => {
+    wizardControls.openWizard();
+  });
+
+  renderAuthState();
 }
 
 function setupTabs() {
@@ -206,6 +348,7 @@ function setupWizard() {
   };
 
   const showWizard = () => {
+    if (!state.authSession?.token) return toast('Please log in first.');
     accountSetupFlow.classList.remove('hidden');
     savedProfileCard.classList.add('hidden');
     createAccountCard.classList.add('hidden');
@@ -218,12 +361,19 @@ function setupWizard() {
     savedProfileCard.classList.remove('hidden');
   };
 
-  if (state.profile) {
-    fillFormFromProfile();
-    showSavedState();
-  } else {
-    showCreateState();
-  }
+  const showSignedOutState = () => {
+    accountSetupFlow.classList.add('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+  };
+
+  const showSignedInState = () => {
+    if (state.profile) showSavedState();
+    else showCreateState();
+  };
+
+  if (state.authSession?.token) showSignedInState();
+  else showSignedOutState();
 
   createAccountBtn.addEventListener('click', () => {
     state.wizardStep = 1;
@@ -257,12 +407,27 @@ function setupWizard() {
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     state.profile = Object.fromEntries(new FormData(form).entries());
+    saveCurrentAccount();
+    renderAccountOverview();
     addXp(10, 'Profile saved');
     saveState();
     showSavedState();
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
+
+  return {
+    fillFormFromProfile,
+    openWizard: () => {
+      fillFormFromProfile();
+      state.wizardStep = 1;
+      updateWizardUI();
+      form.dispatchEvent(new Event('input'));
+      showWizard();
+    },
+    showSignedOutState,
+    showSignedInState
+  };
 }
 
 // Match quality engine
@@ -834,7 +999,8 @@ function setupThemeAndReset() {
 
 setupTabs();
 setupThemeAndReset();
-setupWizard();
+const wizardControls = setupWizard();
+setupAccountAuth(wizardControls);
 setupMeet();
 setupDirectChat();
 setupReflectionSubmit();
