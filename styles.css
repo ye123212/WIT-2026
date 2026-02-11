@@ -88,7 +88,20 @@ label{display:flex;flex-direction:column;gap:8px}input,select,textarea{padding:1
 @media (max-width:1024px){.tabs{grid-template-columns:repeat(3,1fr)}.cols-3{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:768px){.tabs{grid-template-columns:repeat(2,1fr)}.cols-2,.cols-3{grid-template-columns:1fr}}
 
-#requestChatLog{white-space:pre-line;line-height:1.5;min-height:72px}
+.direct-chat-collapsed{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);cursor:pointer;transition:transform .2s ease,background .2s ease}
+.direct-chat-collapsed:hover{transform:translateY(-1px)}
+.direct-chat-collapsed.is-empty{opacity:.88}
+.direct-chat-sender{margin:0 0 2px;font-weight:600}
+.direct-chat-meta{display:flex;align-items:center;gap:8px}
+.unread-dot{width:8px;height:8px;border-radius:999px;background:#ef4444;display:inline-block}
+.direct-chat-panel{margin-top:10px;max-height:0;opacity:0;overflow:hidden;transition:max-height .35s ease,opacity .25s ease,padding .25s ease;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--border);border-radius:14px}
+.direct-chat-panel.expanded{max-height:420px;opacity:1;padding:10px}
+.direct-chat-history{flex:1;overflow-y:auto;min-height:180px;max-height:300px;padding:4px 4px 8px;display:flex;flex-direction:column;gap:8px}
+.chat-bubble{max-width:76%;padding:8px 10px;border-radius:14px;line-height:1.35;word-wrap:break-word}
+.chat-bubble.from-sender{align-self:flex-start;background:#eef2ff;border-bottom-left-radius:6px}
+.chat-bubble.from-user{align-self:flex-end;background:#dbeafe;border-bottom-right-radius:6px}
+.direct-chat-input-row{position:sticky;bottom:0;display:flex;gap:8px;padding-top:8px;background:var(--bg)}
+.direct-chat-input-row input{flex:1}
 
 .notification-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border-bottom:1px solid var(--border);transition:opacity .3s ease,transform .3s ease}
 .notification-text{margin:0;flex:1;line-height:1.45}
