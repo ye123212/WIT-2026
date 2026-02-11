@@ -30,8 +30,7 @@
       <button class="tab active" data-tab="setup" type="button">Account Overview</button>
       <button class="tab" data-tab="meet" type="button">Meet Someone</button>
       <button class="tab" data-tab="gamification" type="button">Gamification</button>
-      <button class="tab" data-tab="community" type="button">Community</button>
-      <button class="tab" data-tab="notifications" type="button">Notifications</button>
+      <button class="tab" data-tab="community" type="button">Chat</button>
     </nav>
 
     <section id="setup" class="panel active" role="tabpanel">
@@ -117,6 +116,21 @@
           <p class="small">Resets after 2 missed consecutive days.</p>
         </article>
       </div>
+
+      <article class="card" id="accountNotificationsSection">
+        <h3>Notifications</h3>
+        <p id="accountRequestNotice" class="small">No new question requests yet.</p>
+        <div id="notificationList" class="surface"></div>
+        <article class="card hidden" id="incomingRequestCard">
+          <h3>Incoming Question Request</h3>
+          <p id="incomingRequestSummary" class="small"></p>
+          <div class="button-row">
+            <button id="acceptRequestBtn" class="btn success" type="button">Accept</button>
+            <button id="rejectRequestBtn" class="btn ghost" type="button">Reject</button>
+          </div>
+        </article>
+      </article>
+
     </section>
 
     <section id="meet" class="panel" role="tabpanel">
@@ -184,38 +198,33 @@
     </section>
 
     <section id="community" class="panel" role="tabpanel">
-      <h2>Community</h2>
-      <div class="card"><p>Rooms and activity feed remain from prior prototype behavior.</p></div>
-    </section>
+      <h2>Chat</h2>
+      <div class="grid cols-1">
+        <article class="card" id="communityChatSection">
+          <h3>Community Chat</h3>
+          <p class="small">Group chat / forum-style interactions for the community prototype.</p>
+          <div class="surface">
+            <p><strong>#General</strong> Welcome everyone 👋</p>
+            <p><strong>#WeekendPlans</strong> Anyone up for a local meetup?</p>
+          </div>
+        </article>
 
-    <section id="notifications" class="panel" role="tabpanel">
-      <h2>Notifications</h2>
-      <article class="card">
-        <h3>All Notifications</h3>
-        <p id="accountRequestNotice" class="small">No new question requests yet.</p>
-        <div id="notificationList" class="surface"></div>
-      </article>
-
-      <article class="card hidden" id="incomingRequestCard">
-        <h3>Incoming Question Request</h3>
-        <p id="incomingRequestSummary" class="small"></p>
-        <div class="button-row">
-          <button id="acceptRequestBtn" class="btn success" type="button">Accept</button>
-          <button id="rejectRequestBtn" class="btn ghost" type="button">Reject</button>
-        </div>
-      </article>
-
-      <article class="card hidden" id="requestChatCard">
-        <h3>Typing Chat (Prototype)</h3>
-        <div id="requestChatLog" class="surface"></div>
-        <label>Reply message
-          <textarea id="requestChatInput" rows="3" placeholder="Type your reply..."></textarea>
-        </label>
-        <div class="button-row">
-          <button id="sendChatReplyBtn" class="btn primary" type="button">Send Reply</button>
-          <button id="startCallBtn" class="btn ghost" type="button" disabled>Start Call (Disabled)</button>
-        </div>
-      </article>
+        <article class="card" id="directChatSection">
+          <h3>Direct Chat</h3>
+          <p class="small">1:1 chat opens here after a request is accepted.</p>
+          <article class="card hidden" id="requestChatCard">
+            <h3>Typing Chat (Prototype)</h3>
+            <div id="requestChatLog" class="surface"></div>
+            <label>Reply message
+              <textarea id="requestChatInput" rows="3" placeholder="Type your reply..."></textarea>
+            </label>
+            <div class="button-row">
+              <button id="sendChatReplyBtn" class="btn primary" type="button">Send Reply</button>
+              <button id="startCallBtn" class="btn ghost" type="button" disabled>Start Call (Disabled)</button>
+            </div>
+          </article>
+        </article>
+      </div>
     </section>
 
   </main>

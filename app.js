@@ -445,6 +445,11 @@ function setupMeet() {
     updateRequestStatus('Receiver accepted the request. Typing chat opened.', true);
     document.getElementById('incomingRequestCard').classList.add('hidden');
 
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+    const chatTab = document.querySelector('.tab[data-tab="community"]');
+    if (chatTab) chatTab.classList.add('active');
+    document.getElementById('community').classList.add('active');
   });
 
   document.getElementById('rejectRequestBtn').addEventListener('click', () => {
