@@ -136,18 +136,58 @@ function setupWizard() {
   const createAccountCard = document.getElementById('createAccountCard');
   const createAccountBtn = document.getElementById('createAccountBtn');
   const accountSetupFlow = document.getElementById('accountSetupFlow');
+  const savedProfileCard = document.getElementById('savedProfileCard');
+  const savedProfileText = document.getElementById('savedProfileText');
+  const editProfileBtn = document.getElementById('editProfileBtn');
 
-  const showWizard = (shouldShow) => {
-    accountSetupFlow.classList.toggle('hidden', !shouldShow);
-    createAccountCard.classList.toggle('hidden', shouldShow);
+  const fillFormFromProfile = () => {
+    if (!state.profile) return;
+    for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
   };
 
-  showWizard(Boolean(state.profile));
-  createAccountBtn.addEventListener('click', () => showWizard(true));
+  const renderSavedProfile = () => {
+    savedProfileText.textContent = summarizeProfile(state.profile || {});
+  };
+
+  const showCreateState = () => {
+    accountSetupFlow.classList.add('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.remove('hidden');
+  };
+
+  const showWizard = () => {
+    accountSetupFlow.classList.remove('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+  };
+
+  const showSavedState = () => {
+    renderSavedProfile();
+    accountSetupFlow.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+    savedProfileCard.classList.remove('hidden');
+  };
 
   if (state.profile) {
-    for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
+    fillFormFromProfile();
+    showSavedState();
+  } else {
+    showCreateState();
   }
+
+  createAccountBtn.addEventListener('click', () => {
+    state.wizardStep = 1;
+    updateWizardUI();
+    showWizard();
+  });
+
+  editProfileBtn.addEventListener('click', () => {
+    fillFormFromProfile();
+    state.wizardStep = 1;
+    updateWizardUI();
+    form.dispatchEvent(new Event('input'));
+    showWizard();
+  });
 
   document.querySelectorAll('input[type="range"]').forEach((slider) => {
     const out = document.querySelector(`[data-output="${slider.name}"]`);
@@ -169,6 +209,7 @@ function setupWizard() {
     state.profile = Object.fromEntries(new FormData(form).entries());
     addXp(10, 'Profile saved');
     saveState();
+    showSavedState();
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
@@ -244,6 +285,8 @@ function startMeet() {
   state.meetId = uuid();
   state.meetSeconds = 0;
   document.getElementById('currentPrompt').textContent = prompts[0];
+  document.getElementById('promptAnswerInput').disabled = false;
+  document.getElementById('promptAnswerInput').value = '';
   document.getElementById('respondPromptBtn').disabled = false;
   document.getElementById('reportBtn').disabled = false;
   emitEvent('MATCH_MADE', { meet_id: state.meetId, score });
@@ -266,6 +309,8 @@ function startMeet() {
 function endMeet(reason) {
   clearInterval(state.timer);
   document.getElementById('respondPromptBtn').disabled = true;
+  document.getElementById('promptAnswerInput').disabled = true;
+  document.getElementById('promptAnswerInput').value = '';
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
@@ -275,7 +320,11 @@ function endMeet(reason) {
 function setupMeet() {
   document.getElementById('startMatchBtn').addEventListener('click', startMeet);
   document.getElementById('respondPromptBtn').addEventListener('click', () => {
+    const answerInput = document.getElementById('promptAnswerInput');
+    const answer = answerInput.value.trim();
+    if (!answer) return toast('Please type an answer before submitting.');
     document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
+    answerInput.value = '';
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
