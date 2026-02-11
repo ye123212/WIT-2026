@@ -29,7 +29,10 @@ const state = {
   reflectionHistory: JSON.parse(localStorage.getItem(STORAGE.reflectionHistory) || '[]'),
   requireReflection: false,
   currentReflection: { meetId: '', userId: '', reason: '', vibe: 0, tags: [] },
-  dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}')
+  dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}'),
+  activeRequest: null,
+  requestStatus: 'idle',
+  notifications: []
 };
 
 const prompts = [
@@ -113,7 +116,14 @@ function setupTabs() {
 }
 
 function summarizeProfile(data) {
-  return `${data.nickname || 'User'} • ${data.depth || 'Moderate'} depth • topics: ${data.topics || 'n/a'} • off-limits: ${data.offLimits || 'none'}`;
+  const points = [
+    `Nickname: ${data.nickname || 'User'}`,
+    `Age range: ${data.ageRange || 'Not set'}`,
+    `Depth: ${data.depth || 'Moderate'}`,
+    `Topics: ${data.topics || 'n/a'}`,
+    `Off-limits: ${data.offLimits || 'none'}`
+  ];
+  return points.join('\n');
 }
 
 function updateWizardUI() {
@@ -126,9 +136,61 @@ function updateWizardUI() {
 
 function setupWizard() {
   const form = document.getElementById('profileWizard');
-  if (state.profile) {
+  const createAccountCard = document.getElementById('createAccountCard');
+  const createAccountBtn = document.getElementById('createAccountBtn');
+  const accountSetupFlow = document.getElementById('accountSetupFlow');
+  const savedProfileCard = document.getElementById('savedProfileCard');
+  const savedProfileText = document.getElementById('savedProfileText');
+  const editProfileBtn = document.getElementById('editProfileBtn');
+
+  const fillFormFromProfile = () => {
+    if (!state.profile) return;
     for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
+  };
+
+  const renderSavedProfile = () => {
+    savedProfileText.textContent = summarizeProfile(state.profile || {});
+  };
+
+  const showCreateState = () => {
+    accountSetupFlow.classList.add('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.remove('hidden');
+  };
+
+  const showWizard = () => {
+    accountSetupFlow.classList.remove('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+  };
+
+  const showSavedState = () => {
+    renderSavedProfile();
+    accountSetupFlow.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+    savedProfileCard.classList.remove('hidden');
+  };
+
+  if (state.profile) {
+    fillFormFromProfile();
+    showSavedState();
+  } else {
+    showCreateState();
   }
+
+  createAccountBtn.addEventListener('click', () => {
+    state.wizardStep = 1;
+    updateWizardUI();
+    showWizard();
+  });
+
+  editProfileBtn.addEventListener('click', () => {
+    fillFormFromProfile();
+    state.wizardStep = 1;
+    updateWizardUI();
+    form.dispatchEvent(new Event('input'));
+    showWizard();
+  });
 
   document.querySelectorAll('input[type="range"]').forEach((slider) => {
     const out = document.querySelector(`[data-output="${slider.name}"]`);
@@ -150,6 +212,7 @@ function setupWizard() {
     state.profile = Object.fromEntries(new FormData(form).entries());
     addXp(10, 'Profile saved');
     saveState();
+    showSavedState();
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
@@ -212,6 +275,72 @@ function forceReflectionBeforeNextMeet() {
   toast('Cold start mode: submit reflection before next meet.');
 }
 
+
+function showAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.remove('hidden');
+  input.disabled = false;
+  input.value = '';
+}
+
+function hideAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.add('hidden');
+  input.disabled = true;
+  input.value = '';
+}
+
+function resetMeetTimerUI() {
+  state.meetSeconds = 0;
+  document.getElementById('chatTimer').textContent = '00:00';
+  const ring = document.getElementById('ringProgress');
+  ring.style.strokeDashoffset = '327';
+  ring.style.stroke = '#50E3C2';
+}
+
+function updateRequestStatus(message, show = true) {
+  const gate = document.getElementById('decisionGate');
+  const label = document.getElementById('requestSentMessage');
+  label.textContent = message;
+  gate.classList.toggle('hidden', !show);
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notificationList');
+  const notice = document.getElementById('accountRequestNotice');
+  if (!state.notifications.length) {
+    notice.textContent = 'No new question requests yet.';
+    list.textContent = 'No notifications.';
+    return;
+  }
+  notice.textContent = `${state.notifications.length} notification(s)`;
+  list.innerHTML = '';
+  state.notifications.forEach((n) => {
+    const row = document.createElement('div');
+    row.className = 'notification-item';
+    row.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}`;
+    list.appendChild(row);
+  });
+}
+
+function renderIncomingRequest() {
+  const incomingCard = document.getElementById('incomingRequestCard');
+  const incomingSummary = document.getElementById('incomingRequestSummary');
+  const pending = state.notifications.find((x) => x.status === 'Pending');
+  if (!pending) {
+    state.activeRequest = null;
+    incomingCard.classList.add('hidden');
+    renderNotifications();
+    return;
+  }
+  state.activeRequest = pending;
+  incomingSummary.textContent = `Question asked by ${pending.sender}: "${pending.prompt}" • Submitted answer: "${pending.answer}" • Status: ${pending.status}`;
+  incomingCard.classList.remove('hidden');
+  renderNotifications();
+}
+
 function startMeet() {
   if (!state.profile) return toast('Complete profile first.');
   if (state.requireReflection) return toast('Please submit pending reflection first.');
@@ -223,8 +352,13 @@ function startMeet() {
   document.getElementById('matchReasons').textContent = reasons.join(' • ') || 'Strong compatibility signals';
   document.getElementById('matchStatus').textContent = `Matched (score ${score.toFixed(2)})`;
   state.meetId = uuid();
-  state.meetSeconds = 0;
+  resetMeetTimerUI();
+  state.requestStatus = 'idle';
+  document.getElementById('requestChatCard').classList.add('hidden');
+  renderIncomingRequest();
+  updateRequestStatus('No request sent yet.', false);
   document.getElementById('currentPrompt').textContent = prompts[0];
+  showAnswerInput();
   document.getElementById('respondPromptBtn').disabled = false;
   document.getElementById('reportBtn').disabled = false;
   emitEvent('MATCH_MADE', { meet_id: state.meetId, score });
@@ -237,7 +371,6 @@ function startMeet() {
     const pct = Math.min(state.meetSeconds / 60, 1);
     ring.style.strokeDashoffset = String(327 - 327 * pct);
     ring.style.stroke = state.meetSeconds < 20 ? '#50E3C2' : state.meetSeconds < 40 ? '#F5A623' : '#ef4444';
-    if ([20,40,60].includes(state.meetSeconds)) document.getElementById('decisionGate').classList.remove('hidden');
     if (state.meetSeconds >= 60) {
       endMeet('timeout');
     }
@@ -247,8 +380,10 @@ function startMeet() {
 function endMeet(reason) {
   clearInterval(state.timer);
   document.getElementById('respondPromptBtn').disabled = true;
+  hideAnswerInput();
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
+  document.getElementById('requestChatCard').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
   onMeetEnd(state.meetId, getUserId(), reason);
 }
@@ -256,18 +391,65 @@ function endMeet(reason) {
 function setupMeet() {
   document.getElementById('startMatchBtn').addEventListener('click', startMeet);
   document.getElementById('respondPromptBtn').addEventListener('click', () => {
-    document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
+    const answerInput = document.getElementById('promptAnswerInput');
+    const answer = answerInput.value.trim();
+    if (!answer) return toast('Please type an answer before submitting.');
+
+    const currentPrompt = document.getElementById('currentPrompt').textContent;
+    const notification = { id: uuid(), sender: getUserId(), prompt: currentPrompt, answer, status: 'Pending' };
+    state.notifications.unshift(notification);
+    state.activeRequest = notification;
+    state.requestStatus = 'sent';
+    clearInterval(state.timer);
+    resetMeetTimerUI();
+
+    hideAnswerInput();
+    document.getElementById('respondPromptBtn').disabled = true;
+    updateRequestStatus('Request sent successfully. Waiting for receiver action.', true);
+    renderIncomingRequest();
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
   document.getElementById('reportBtn').addEventListener('click', () => reportModal.showModal());
   document.getElementById('cancelReport').addEventListener('click', () => reportModal.close());
   document.getElementById('confirmReport').addEventListener('click', () => { reportModal.close(); endMeet('left_early'); });
-  document.querySelectorAll('#decisionGate [data-decision]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.decision === 'yes') { document.getElementById('friendReveal').classList.remove('hidden'); document.getElementById('friendReveal').textContent='Profiles revealed!'; endMeet('completed'); }
-    else if (b.dataset.decision === 'notyet') document.getElementById('decisionGate').classList.add('hidden');
-    else endMeet('left_early');
-  }));
+  document.getElementById('acceptRequestBtn').addEventListener('click', () => {
+    if (!state.activeRequest) return;
+    state.activeRequest.status = 'Accepted';
+    document.getElementById('incomingRequestSummary').textContent = `Accepted question from ${state.activeRequest.sender}: "${state.activeRequest.prompt}" • Sender answer: "${state.activeRequest.answer}"`;
+    renderNotifications();
+    const chatLog = document.getElementById('requestChatLog');
+    chatLog.textContent = `${state.activeRequest.sender}: ${state.activeRequest.answer}`;
+    document.getElementById('requestChatCard').classList.remove('hidden');
+    updateRequestStatus('Receiver accepted the request. Typing chat opened.', true);
+    document.getElementById('incomingRequestCard').classList.add('hidden');
+
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+    const chatTab = document.querySelector('.tab[data-tab="community"]');
+    if (chatTab) chatTab.classList.add('active');
+    document.getElementById('community').classList.add('active');
+  });
+
+  document.getElementById('rejectRequestBtn').addEventListener('click', () => {
+    if (!state.activeRequest) return;
+    state.activeRequest.status = 'Rejected';
+    document.getElementById('incomingRequestCard').classList.add('hidden');
+    document.getElementById('requestChatCard').classList.add('hidden');
+    updateRequestStatus('Receiver rejected the request.', true);
+    state.activeRequest = null;
+    renderIncomingRequest();
+  });
+
+  document.getElementById('sendChatReplyBtn').addEventListener('click', () => {
+    const input = document.getElementById('requestChatInput');
+    const text = input.value.trim();
+    if (!text) return toast('Type a reply message first.');
+    const chatLog = document.getElementById('requestChatLog');
+    chatLog.textContent += `
+Receiver: ${text}`;
+    input.value = '';
+  });
 }
 
 // Reflection flow
@@ -389,6 +571,8 @@ function setupReflectionSubmit() {
 }
 
 function setupDashboardData() {
+  renderNotifications();
+  renderIncomingRequest();
   document.getElementById('dailyPromptQuestion').textContent = DAILY_PROMPT.question;
   document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
     const ans = document.getElementById('dailyPromptAnswer').value.trim();
