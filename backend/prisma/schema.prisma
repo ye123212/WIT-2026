@@ -8,9 +8,33 @@ datasource db {
 }
 
 model User {
-  id                String            @id
-  initiatedLinks    UserConnection[]  @relation("InitiatedConnections")
-  receivedLinks     UserConnection[]  @relation("ReceivedConnections")
+  id               String                 @id
+  email            String?                @unique
+  passwordHash     String?
+  status           UserStatus             @default(active)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  lastSeenAt       DateTime?
+  profile          UserProfile?
+  preferences      UserPreferenceSetting?
+  valueScores      UserValueScore[]
+  interestScores   UserInterestScore[]
+  offLimitsTopics  UserOffLimitsTopic[]
+  queueEntries     MatchingQueueEntry[]
+  authoredMessages ConversationMessage[]
+  trustScore       TrustScore?
+  initiatedLinks   UserConnection[]       @relation("InitiatedConnections")
+  receivedLinks    UserConnection[]       @relation("ReceivedConnections")
+  initiatedBlocks  Block[]                @relation("Blocker")
+  receivedBlocks   Block[]                @relation("Blocked")
+  authoredReports  Report[]               @relation("Reporter")
+  targetReports    Report[]               @relation("Reported")
+}
+
+enum UserStatus {
+  active
+  restricted
+  deleted
 }
 
 model UserConnection {
@@ -39,6 +63,138 @@ model MeetReflection {
   @@index([userId, createdAt])
 }
 
+model UserProfile {
+  userId          String   @id
+  nickname        String
+  ageRange        String
+  locationCity    String?
+  locationCountry String?
+  avatarUrl       String?
+  bio             String?  @db.VarChar(280)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreferenceSetting {
+  userId              String              @id
+  conversationDepth   ConversationDepth
+  contactFrequency    ContactFrequency
+  directnessScore     Int
+  humorScore          Int
+  responsePace        ResponsePace
+  groupComfort        GroupComfort
+  friendshipIntention FriendshipIntention
+  voiceNoteOk         Boolean             @default(false)
+  availabilityWindows Json?
+  updatedAt           DateTime            @updatedAt
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserValueScore {
+  userId   String
+  valueKey String
+  score    Int
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, valueKey])
+}
+
+model UserInterestScore {
+  userId      String
+  interestKey String
+  score       Int
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestKey])
+}
+
+model UserOffLimitsTopic {
+  userId   String
+  topicKey String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topicKey])
+}
+
+model MatchingQueueEntry {
+  id         String           @id @default(uuid())
+  userId     String
+  status     QueueEntryStatus @default(active)
+  enqueuedAt DateTime         @default(now())
+  dequeuedAt DateTime?
+  regionKey  String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, enqueuedAt])
+  @@index([userId, enqueuedAt])
+}
+
+model MatchSession {
+  id                 String             @id @default(uuid())
+  userAId            String
+  userBId            String
+  status             MatchSessionStatus @default(pending)
+  matchedAt          DateTime           @default(now())
+  endedAt            DateTime?
+  matchScore         Decimal?           @db.Decimal(5, 2)
+  scoreBreakdownJson Json?
+  matchReasonsJson   Json?
+
+  @@index([matchedAt])
+  @@index([userAId, matchedAt])
+  @@index([userBId, matchedAt])
+}
+
+model ConversationSession {
+  id             String                     @id @default(uuid())
+  matchSessionId String
+  state          ConversationState          @default(anonymous)
+  startedAt      DateTime                   @default(now())
+  closedAt       DateTime?
+  closeReason    ConversationCloseReason?
+  messages       ConversationMessage[]
+  decisionGates  ConversationDecisionGate[]
+
+  @@index([matchSessionId])
+}
+
+model ConversationMessage {
+  id                    String              @id @default(uuid())
+  conversationSessionId String
+  senderUserId          String
+  messageText           String              @db.Text
+  containsSensitive     Boolean             @default(false)
+  moderationLabel       String?
+  createdAt             DateTime            @default(now())
+  conversationSession   ConversationSession @relation(fields: [conversationSessionId], references: [id], onDelete: Cascade)
+  sender                User                @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([conversationSessionId, createdAt])
+}
+
+model ConversationDecisionGate {
+  id                    String              @id @default(uuid())
+  conversationSessionId String
+  gateMinute            Int
+  userId                String
+  decision              GateDecision
+  decidedAt             DateTime            @default(now())
+  conversationSession   ConversationSession @relation(fields: [conversationSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationSessionId, gateMinute, userId])
+}
+
+model Friendship {
+  id                   String   @id @default(uuid())
+  userLowId            String
+  userHighId           String
+  originMatchSessionId String?
+  createdAt            DateTime @default(now())
+
+  @@unique([userLowId, userHighId])
+}
+
 model DailyPromptAnswer {
   id        String   @id @default(uuid())
   promptId  String
@@ -60,5 +216,119 @@ model TrustScore {
   userId          String   @id
   score           Int      @default(50)
   cooldownApplied Boolean  @default(false)
+  componentsJson  Json?
   updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id                    String         @id @default(uuid())
+  reporterUserId        String
+  reportedUserId        String
+  conversationSessionId String?
+  reasonCode            String
+  detailsText           String?        @db.Text
+  severity              ReportSeverity @default(low)
+  status                ReportStatus   @default(open)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  reporter              User           @relation("Reporter", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  reported              User           @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model Block {
+  id            String      @id @default(uuid())
+  blockerUserId String
+  blockedUserId String
+  source        BlockSource @default(manual)
+  createdAt     DateTime    @default(now())
+  blocker       User        @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked       User        @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+}
+
+enum ConversationDepth {
+  light
+  moderate
+  deep
+}
+
+enum ContactFrequency {
+  daily
+  weekly
+  occasional
+}
+
+enum ResponsePace {
+  quick
+  flexible
+}
+
+enum GroupComfort {
+  one_to_one
+  small_groups
+  any
+}
+
+enum FriendshipIntention {
+  long_term
+  open_ended
+  activity_buddies
+}
+
+enum QueueEntryStatus {
+  active
+  matched
+  cancelled
+  expired
+}
+
+enum MatchSessionStatus {
+  pending
+  active_chat
+  ended
+  friend_revealed
+}
+
+enum ConversationState {
+  anonymous
+  decision_gate
+  revealed
+  closed
+}
+
+enum ConversationCloseReason {
+  mutual_end
+  user_end
+  panic_exit
+  timeout
+}
+
+enum GateDecision {
+  reveal_yes
+  not_yet
+  end_chat
+}
+
+enum ReportSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum ReportStatus {
+  open
+  triaged
+  actioned
+  dismissed
+}
+
+enum BlockSource {
+  manual
+  panic_exit
+  moderation_action
 }
