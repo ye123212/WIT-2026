@@ -72,6 +72,26 @@ function addXp(amount, reason) {
   saveState();
 }
 
+function getAvatarStage(xp) {
+  if (xp >= 21) return 'stage-mature';
+  if (xp >= 11) return 'stage-growing';
+  return 'stage-young';
+}
+
+function updateAvatarGrowth() {
+  const avatar = document.getElementById('xpAvatar');
+  const growthLabel = document.getElementById('avatarGrowthLabel');
+  if (!avatar || !growthLabel) return;
+
+  const stage = getAvatarStage(state.xp);
+  avatar.classList.remove('stage-young', 'stage-growing', 'stage-mature');
+  avatar.classList.add(stage);
+
+  if (stage === 'stage-young') growthLabel.textContent = 'XP 1–10: Baby panda form';
+  else if (stage === 'stage-growing') growthLabel.textContent = 'XP 11–20: Growing panda with extra detail';
+  else growthLabel.textContent = 'XP 21+: Fully grown panda with playful style';
+}
+
 function refreshStats() {
   document.getElementById('xpStat').textContent = `XP ${state.xp}`;
   document.getElementById('streakStat').textContent = `🔥 ${state.streak}`;
@@ -79,6 +99,7 @@ function refreshStats() {
   document.getElementById('xpFill').style.width = `${state.xp % 100}%`;
   document.getElementById('levelLabel').textContent = `Level ${Math.floor(state.xp / 100) + 1}`;
   document.getElementById('reflectionStreakLabel').textContent = `${state.streak} days`;
+  updateAvatarGrowth();
   renderBadges();
 }
 
