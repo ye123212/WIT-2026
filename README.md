@@ -1,23 +1,17 @@
 # WIT Friends Prototype
 
-Interactive front-end prototype for a values-first friendship platform.
+Static prototype implementing onboarding, matching, post-meet reflection, and dashboard rituals.
 
-## Included UX
-- 4-step onboarding wizard with smooth step animation, progress bar, live preview card, avatar selector, chips, and profile summary.
-- Anonymous-first matching with animated timer ring (color thresholds), checkpoints (demo 20/40/60s), report modal, reactions, and prompt rating.
-- Gamification cards (XP, streaks, companion evolution, quests, locked/earned badges).
-- Community room filtering, join-by-code flow, and live activity feed.
-- Dashboard cards with privacy controls, trend chart, next actions, and reward countdown.
-- Light/Dark theme toggle, top-right toast notifications, confetti bursts, localStorage persistence.
+## Added in this iteration
+- Post-meet reflection modal with required vibe score + outcome and optional feedback tags.
+- Reflection XP rewards, streak updates, cold-start reflection gate, trust scoring cooldowns.
+- Match quality scoring function with explainable reasons shown in match UI.
+- Daily prompt answer capture and weekly intent persistence.
+- Analytics event emitters for key behaviors.
+- OpenAPI-style specs in `API_SPEC.md`.
 
-## Run locally
-
+## Run
 ```bash
 python3 -m http.server 4173
 ```
-
-Open: <http://localhost:4173>
-
-## Notes
-- Static prototype (no backend/API).
-- State persists in browser localStorage.
+Then open http://localhost:4173

@@ -1,452 +1,419 @@
-const storageKeys = {
-  profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', quests: 'witQuests', theme: 'witTheme'
+const STORAGE = {
+  profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', theme: 'witTheme',
+  meetCount: 'witMeetCount', reflectionHistory: 'witReflectionHistory', weeklyIntent: 'witWeeklyIntent', dailyPromptAnswers:'witDailyPromptAnswers', trust:'witTrust'
 };
 
-const allBadges = [
-  { name: 'Great Listener 🧠', cond: (s) => s.xp >= 60 },
-  { name: 'Consistency Star 🔥', cond: (s) => s.streak >= 2 },
-  { name: 'Deep Diver 🌊', cond: (s) => s.profile?.depth === 'Deep' },
-  { name: 'Community Connector 🤝', cond: (s) => s.xp >= 140 }
-];
+const XP_REWARDS = { completeReflection: 20, detailedFeedback: 10, dailyReflectionStreak: 5 };
+const OUTCOME_VALUES = ['again', 'maybe', 'pass'];
+const FEEDBACK_TAGS = ['Good listener', 'Interesting ideas', 'Respectful', 'Funny', 'Too quiet', 'Off-topic'];
+const DAILY_PROMPT = { id: 'dp-001', question: 'What value guided one decision you made today?', category: 'values' };
+
+const db = {
+  meet_reflections: [], // {id,meet_id,user_id,vibe_score,meet_outcome,feedback_tags,created_at}
+  daily_prompt: [DAILY_PROMPT],
+  user_weekly_intent: [], // {user_id, intent}
+  trust_score: [] // {user_id, score}
+};
 
 const state = {
-  profile: JSON.parse(localStorage.getItem(storageKeys.profile) || 'null'),
-  xp: Number(localStorage.getItem(storageKeys.xp) || 0),
-  streak: Number(localStorage.getItem(storageKeys.streak) || 0),
-  badges: JSON.parse(localStorage.getItem(storageKeys.badges) || '[]'),
-  theme: localStorage.getItem(storageKeys.theme) || 'light',
-  quests: JSON.parse(localStorage.getItem(storageKeys.quests) || 'null') || [
-    { id: 1, text: 'Share your favorite song today', done: false, reward: 20 },
-    { id: 2, text: 'Recommend a book or movie', done: false, reward: 20 },
-    { id: 3, text: 'Ask a values-based question', done: false, reward: 20 }
-  ],
+  profile: JSON.parse(localStorage.getItem(STORAGE.profile) || 'null'),
+  xp: Number(localStorage.getItem(STORAGE.xp) || 0),
+  streak: Number(localStorage.getItem(STORAGE.streak) || 0),
+  badges: JSON.parse(localStorage.getItem(STORAGE.badges) || '[]'),
+  theme: localStorage.getItem(STORAGE.theme) || 'light',
   wizardStep: 1,
-  match: null,
-  matchSeconds: 0,
   timer: null,
-  activity: ['Welcome to WIT Friends!']
+  meetId: null,
+  meetSeconds: 0,
+  meetCount: Number(localStorage.getItem(STORAGE.meetCount) || 0),
+  reflectionHistory: JSON.parse(localStorage.getItem(STORAGE.reflectionHistory) || '[]'),
+  requireReflection: false,
+  currentReflection: { meetId: '', userId: '', reason: '', vibe: 0, tags: [] },
+  dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}')
 };
 
 const prompts = [
   'Your house catches fire. After saving loved ones and pets, what one item do you save and why?',
   'If you could relive one day in your life, which would it be and why?',
-  'What hobby should everyone try at least once?',
-  'What value do you protect even when inconvenient?',
-  'What makes you feel truly understood?'
-];
-
-const offLimitTopics = ['Politics', 'Religion', 'Finances', 'Family', 'Mental Health'];
-const microPrefs = ['1:1 only', 'Small groups', 'Long-term', 'Quick replies', 'Voice notes'];
-
-const rooms = [
-  { name: 'Travel Lounge', interest: 'Travel', members: 42, when: 'Today 7:00 PM', cost: 'Free', status: 'Active' },
-  { name: 'Values Debate', interest: 'Values', members: 18, when: 'Fri 8:30 PM', cost: 'Free', status: 'Upcoming' },
-  { name: 'Music Share Hour', interest: 'Music', members: 27, when: 'Sat 6:00 PM', cost: 'Free', status: 'Active' },
-  { name: 'Curiosity Circle', interest: 'Values', members: 60, when: 'Now', cost: 'Free', status: 'Full' }
+  'What hobby should everyone try at least once?'
 ];
 
 function saveState() {
-  localStorage.setItem(storageKeys.profile, JSON.stringify(state.profile));
-  localStorage.setItem(storageKeys.xp, String(state.xp));
-  localStorage.setItem(storageKeys.streak, String(state.streak));
-  localStorage.setItem(storageKeys.badges, JSON.stringify(state.badges));
-  localStorage.setItem(storageKeys.quests, JSON.stringify(state.quests));
-  localStorage.setItem(storageKeys.theme, state.theme);
+  localStorage.setItem(STORAGE.profile, JSON.stringify(state.profile));
+  localStorage.setItem(STORAGE.xp, String(state.xp));
+  localStorage.setItem(STORAGE.streak, String(state.streak));
+  localStorage.setItem(STORAGE.badges, JSON.stringify(state.badges));
+  localStorage.setItem(STORAGE.theme, state.theme);
+  localStorage.setItem(STORAGE.meetCount, String(state.meetCount));
+  localStorage.setItem(STORAGE.reflectionHistory, JSON.stringify(state.reflectionHistory));
+  localStorage.setItem(STORAGE.dailyPromptAnswers, JSON.stringify(state.dailyPromptAnswers));
 }
 
-function toast(message) {
+function emitEvent(name, payload = {}) {
+  console.log('ANALYTICS_EVENT', { name, ...payload, at: new Date().toISOString() });
+}
+
+function toast(msg) {
   const n = document.createElement('div');
   n.className = 'toast';
-  n.textContent = message;
+  n.textContent = msg;
   document.getElementById('toastRoot').appendChild(n);
   setTimeout(() => n.remove(), 3500);
 }
 
-function confettiBurst() {
-  const c = document.getElementById('confetti');
-  c.classList.remove('hidden');
-  c.classList.remove('confetti');
-  void c.offsetWidth;
-  c.classList.add('confetti');
-  setTimeout(() => c.classList.add('hidden'), 1100);
+function uuid() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-
-function addActivity(item) {
-  state.activity.unshift(item);
-  state.activity = state.activity.slice(0, 8);
-  const feed = document.getElementById('activityFeed');
-  if (!feed) return;
-  feed.innerHTML = '';
-  state.activity.forEach((t) => {
-    const li = document.createElement('li');
-    li.textContent = t;
-    feed.appendChild(li);
-  });
-}
-
-function levelFromXp() { return Math.floor(state.xp / 100) + 1; }
 
 function addXp(amount, reason) {
-  const beforeLvl = levelFromXp();
   state.xp += amount;
-  const afterLvl = levelFromXp();
   toast(`+${amount} XP • ${reason}`);
-  if (afterLvl > beforeLvl) {
-    state.streak += 1;
-    toast('Companion leveled up ✨');
-    confettiBurst();
-  }
   refreshStats();
-  refreshGamification();
-  unlockBadges();
   saveState();
-}
-
-function unlockBadges() {
-  allBadges.forEach((b) => {
-    if (b.cond(state) && !state.badges.includes(b.name)) {
-      state.badges.push(b.name);
-      toast(`Badge unlocked: ${b.name}`);
-      addActivity(`Unlocked badge: ${b.name}`);
-    }
-  });
-  renderBadges();
 }
 
 function refreshStats() {
   document.getElementById('xpStat').textContent = `XP ${state.xp}`;
   document.getElementById('streakStat').textContent = `🔥 ${state.streak}`;
   document.getElementById('streakBig').textContent = state.streak;
+  document.getElementById('xpFill').style.width = `${state.xp % 100}%`;
+  document.getElementById('levelLabel').textContent = `Level ${Math.floor(state.xp / 100) + 1}`;
+  document.getElementById('reflectionStreakLabel').textContent = `${state.streak} days`;
+  renderBadges();
 }
 
-function refreshGamification() {
-  const current = state.xp % 100;
-  document.getElementById('xpFill').style.width = `${current}%`;
-  document.getElementById('levelLabel').textContent = `Level ${levelFromXp()} • ${current}/100 XP`;
-  const level = levelFromXp();
-  document.getElementById('companionLevel').textContent = `Level ${level} Companion`;
-  document.getElementById('companion').textContent = level < 3 ? '🐣' : level < 5 ? '🐥' : '🦄';
+function renderBadges() {
+  const root = document.getElementById('badgeList');
+  const all = ['Great Listener', 'Reflection Pro', 'Trusted Member'];
+  if (state.xp >= 60 && !state.badges.includes('Great Listener')) state.badges.push('Great Listener');
+  if (db.meet_reflections.length >= 3 && !state.badges.includes('Reflection Pro')) state.badges.push('Reflection Pro');
+  if (getTrustScore(getUserId()) >= 70 && !state.badges.includes('Trusted Member')) state.badges.push('Trusted Member');
+  root.innerHTML = '';
+  all.forEach((b) => {
+    const e = document.createElement('span');
+    e.className = `badge ${state.badges.includes(b) ? 'earned' : 'locked'}`;
+    e.textContent = b;
+    root.appendChild(e);
+  });
+}
+
+function getUserId() {
+  return state.profile?.nickname || 'anonymous_user';
 }
 
 function setupTabs() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach((n) => n.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach((n) => n.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(tab.dataset.tab).classList.add('active');
     });
   });
 }
 
-function summarizeProfile(profile) {
-  const humorous = Number(profile.humor) > 60 ? 'humorous' : 'serious';
-  const direct = Number(profile.directness) > 60 ? 'direct' : 'indirect';
-  return `${profile.avatar} ${profile.nickname || 'User'} prefers ${profile.depth?.toLowerCase() || 'moderate'} conversation, ${humorous} tone, and ${direct} style. ` +
-    `Priorities: empathy ${profile.valueEmpathy || 0}, creativity ${profile.valueCreativity || 0}. Off-limits: ${profile.offLimits || 'none'}.`;
+function summarizeProfile(data) {
+  return `${data.nickname || 'User'} • ${data.depth || 'Moderate'} depth • topics: ${data.topics || 'n/a'} • off-limits: ${data.offLimits || 'none'}`;
 }
 
-function updateLivePreview(form) {
-  const draft = Object.fromEntries(new FormData(form).entries());
-  document.getElementById('livePreview').textContent = summarizeProfile(draft);
-  if (state.wizardStep === 4) document.getElementById('profileSummary').textContent = summarizeProfile(draft);
-}
-
-function updateWizardButtons(form) {
-  const requiredFilled = form.elements.nickname.value.trim() && form.elements.ageRange.value;
-  document.getElementById('wizardNext').disabled = state.wizardStep === 1 && !requiredFilled;
-}
-
-function updateWizardUI(form) {
-  document.querySelectorAll('.wizard-step').forEach((step) => {
-    step.classList.toggle('hidden', Number(step.dataset.step) !== state.wizardStep);
-  });
-  document.getElementById('wizardProgress').style.width = `${(state.wizardStep / 4) * 100}%`;
+function updateWizardUI() {
+  document.querySelectorAll('.wizard-step').forEach((step) => step.classList.toggle('hidden', Number(step.dataset.step) !== state.wizardStep));
+  document.getElementById('wizardProgress').style.width = `${state.wizardStep * 25}%`;
   document.getElementById('wizardBack').disabled = state.wizardStep === 1;
   document.getElementById('wizardNext').classList.toggle('hidden', state.wizardStep === 4);
   document.getElementById('wizardSubmit').classList.toggle('hidden', state.wizardStep !== 4);
-  updateWizardButtons(form);
-}
-
-function bindChips(rootId, items, hiddenName) {
-  const root = document.getElementById(rootId);
-  const hidden = document.querySelector(`input[name="${hiddenName}"]`);
-  const selected = new Set((hidden.value || '').split(',').map((s) => s.trim()).filter(Boolean));
-  root.innerHTML = '';
-  items.forEach((name) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `chip ${selected.has(name) ? 'active' : ''}`;
-    b.textContent = name;
-    b.addEventListener('click', () => {
-      if (selected.has(name)) selected.delete(name); else selected.add(name);
-      b.classList.toggle('active');
-      hidden.value = Array.from(selected).join(',');
-    });
-    root.appendChild(b);
-  });
 }
 
 function setupWizard() {
   const form = document.getElementById('profileWizard');
-  bindChips('offLimitsChips', offLimitTopics, 'offLimits');
-  bindChips('microPrefs', microPrefs, 'microPrefs');
-
   if (state.profile) {
-    Object.entries(state.profile).forEach(([k, v]) => { if (form.elements[k]) form.elements[k].value = v; });
-    document.querySelectorAll('.avatar-item').forEach((a) => a.classList.toggle('selected', a.dataset.avatar === state.profile.avatar));
+    for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
   }
 
-  document.querySelectorAll('.avatar-item').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.avatar-item').forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
-      form.elements.avatar.value = btn.dataset.avatar;
-      updateLivePreview(form);
-    });
-  });
-
-  form.querySelectorAll('input[type="range"]').forEach((slider) => {
+  document.querySelectorAll('input[type="range"]').forEach((slider) => {
     const out = document.querySelector(`[data-output="${slider.name}"]`);
     if (out) out.textContent = slider.value;
-    slider.addEventListener('input', () => {
-      if (out) out.textContent = slider.value;
-      updateLivePreview(form);
-    });
+    slider.addEventListener('input', () => { if (out) out.textContent = slider.value; });
   });
 
   form.addEventListener('input', () => {
-    updateWizardButtons(form);
-    updateLivePreview(form);
+    const data = Object.fromEntries(new FormData(form).entries());
+    document.getElementById('livePreview').textContent = summarizeProfile(data);
+    document.getElementById('profileSummary').textContent = summarizeProfile(data);
+    document.getElementById('wizardNext').disabled = state.wizardStep === 1 && !(data.nickname && data.ageRange);
   });
 
-  document.getElementById('wizardNext').addEventListener('click', () => {
-    if (state.wizardStep === 1 && !(form.elements.nickname.value.trim() && form.elements.ageRange.value)) {
-      toast('Complete nickname and age range first.');
-      return;
-    }
-    state.wizardStep = Math.min(4, state.wizardStep + 1);
-    updateWizardUI(form);
-    updateLivePreview(form);
-  });
-
-  document.getElementById('wizardBack').addEventListener('click', () => {
-    state.wizardStep = Math.max(1, state.wizardStep - 1);
-    updateWizardUI(form);
-  });
-
+  document.getElementById('wizardNext').addEventListener('click', () => { state.wizardStep = Math.min(4, state.wizardStep + 1); updateWizardUI(); });
+  document.getElementById('wizardBack').addEventListener('click', () => { state.wizardStep = Math.max(1, state.wizardStep - 1); updateWizardUI(); });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     state.profile = Object.fromEntries(new FormData(form).entries());
-    addXp(20, 'Profile setup complete');
-    toast('Profile saved. You can now meet someone!');
-    confettiBurst();
-    addActivity('Completed onboarding wizard');
+    addXp(10, 'Profile saved');
+    saveState();
+  });
+  updateWizardUI();
+  form.dispatchEvent(new Event('input'));
+}
+
+// Match quality engine
+function toSetTopics(user) { return new Set((user.topics || '').toLowerCase().split(',').map((x) => x.trim()).filter(Boolean)); }
+function overlapTopics(userA, userB) {
+  const a = toSetTopics(userA), b = toSetTopics(userB);
+  if (!a.size || !b.size) return 0;
+  const inter = [...a].filter((x) => b.has(x)).length;
+  const union = new Set([...a, ...b]).size;
+  return inter / union;
+}
+function overlapPreferences(userA, userB) {
+  const keys = ['depth', 'frequency'];
+  const matches = keys.filter((k) => userA[k] === userB[k]).length;
+  return matches / keys.length;
+}
+function averageVibe(userA, userB) {
+  const a = db.meet_reflections.filter((r) => r.user_id === userA.id).map((r) => r.vibe_score);
+  const b = db.meet_reflections.filter((r) => r.user_id === userB.id).map((r) => r.vibe_score);
+  const all = [...a, ...b];
+  return all.length ? (all.reduce((s, v) => s + v, 0) / all.length) / 5 : 0.6;
+}
+function meetCompletionRate(userA, userB) {
+  const ids = new Set([userA.id, userB.id]);
+  const meets = db.meet_reflections.filter((r) => ids.has(r.user_id));
+  if (!meets.length) return 0.5;
+  const completed = meets.filter((r) => r.meet_outcome !== 'pass').length;
+  return completed / meets.length;
+}
+function reflectionOutcomeBias(userA, userB) {
+  const ids = new Set([userA.id, userB.id]);
+  const meets = db.meet_reflections.filter((r) => ids.has(r.user_id));
+  if (!meets.length) return 0.5;
+  const again = meets.filter((r) => r.meet_outcome === 'again').length;
+  return again / meets.length;
+}
+function computeMatchScore(userA, userB) {
+  const topicScore = overlapTopics(userA, userB);
+  const preferenceScore = overlapPreferences(userA, userB);
+  const vibeAvg = averageVibe(userA, userB);
+  const completionRate = meetCompletionRate(userA, userB);
+  const outcomeBias = reflectionOutcomeBias(userA, userB);
+  return topicScore * 0.3 + preferenceScore * 0.2 + vibeAvg * 0.25 + completionRate * 0.15 + outcomeBias * 0.1;
+}
+
+function explainMatch(userA, userB) {
+  const reasons = [];
+  const topicsA = toSetTopics(userA), topicsB = toSetTopics(userB);
+  const shared = [...topicsA].filter((x) => topicsB.has(x));
+  if (shared.length) reasons.push(`Shared interest in ${shared[0]}`);
+  if (averageVibe(userA, userB) > 0.7) reasons.push('Similar vibe history');
+  return reasons.slice(0, 2);
+}
+
+function forceReflectionBeforeNextMeet() {
+  state.requireReflection = true;
+  toast('Cold start mode: submit reflection before next meet.');
+}
+
+function startMeet() {
+  if (!state.profile) return toast('Complete profile first.');
+  if (state.requireReflection) return toast('Please submit pending reflection first.');
+
+  const self = { id: getUserId(), ...state.profile };
+  const candidate = { id: 'peer_001', topics: 'music,travel,tech', depth: 'Deep', frequency: 'Weekly' };
+  const score = computeMatchScore(self, candidate);
+  const reasons = explainMatch(self, candidate);
+  document.getElementById('matchReasons').textContent = reasons.join(' • ') || 'Strong compatibility signals';
+  document.getElementById('matchStatus').textContent = `Matched (score ${score.toFixed(2)})`;
+  state.meetId = uuid();
+  state.meetSeconds = 0;
+  document.getElementById('currentPrompt').textContent = prompts[0];
+  document.getElementById('respondPromptBtn').disabled = false;
+  document.getElementById('reportBtn').disabled = false;
+  emitEvent('MATCH_MADE', { meet_id: state.meetId, score });
+
+  clearInterval(state.timer);
+  state.timer = setInterval(() => {
+    state.meetSeconds += 1;
+    document.getElementById('chatTimer').textContent = `${String(Math.floor(state.meetSeconds/60)).padStart(2,'0')}:${String(state.meetSeconds%60).padStart(2,'0')}`;
+    const ring = document.getElementById('ringProgress');
+    const pct = Math.min(state.meetSeconds / 60, 1);
+    ring.style.strokeDashoffset = String(327 - 327 * pct);
+    ring.style.stroke = state.meetSeconds < 20 ? '#50E3C2' : state.meetSeconds < 40 ? '#F5A623' : '#ef4444';
+    if ([20,40,60].includes(state.meetSeconds)) document.getElementById('decisionGate').classList.remove('hidden');
+    if (state.meetSeconds >= 60) {
+      endMeet('timeout');
+    }
+  }, 1000);
+}
+
+function endMeet(reason) {
+  clearInterval(state.timer);
+  document.getElementById('respondPromptBtn').disabled = true;
+  document.getElementById('reportBtn').disabled = true;
+  document.getElementById('decisionGate').classList.add('hidden');
+  emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
+  onMeetEnd(state.meetId, getUserId(), reason);
+}
+
+function setupMeet() {
+  document.getElementById('startMatchBtn').addEventListener('click', startMeet);
+  document.getElementById('respondPromptBtn').addEventListener('click', () => {
+    document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
+    addXp(5, 'Prompt response');
+  });
+  const reportModal = document.getElementById('reportModal');
+  document.getElementById('reportBtn').addEventListener('click', () => reportModal.showModal());
+  document.getElementById('cancelReport').addEventListener('click', () => reportModal.close());
+  document.getElementById('confirmReport').addEventListener('click', () => { reportModal.close(); endMeet('left_early'); });
+  document.querySelectorAll('#decisionGate [data-decision]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.decision === 'yes') { document.getElementById('friendReveal').classList.remove('hidden'); document.getElementById('friendReveal').textContent='Profiles revealed!'; endMeet('completed'); }
+    else if (b.dataset.decision === 'notyet') document.getElementById('decisionGate').classList.add('hidden');
+    else endMeet('left_early');
+  }));
+}
+
+// Reflection flow
+function onMeetEnd(meetId, userId, reason) {
+  openReflectionModal(meetId, userId, reason);
+}
+
+function openReflectionModal(meetId, userId, reason) {
+  state.currentReflection = { meetId, userId, reason, vibe: 0, tags: [] };
+  const vibe = document.getElementById('vibePicker');
+  vibe.innerHTML = '';
+  ['😕','🙂','😊','😁','🤩'].forEach((emoji, i) => {
+    const c = document.createElement('button');
+    c.className = 'chip'; c.type = 'button'; c.textContent = emoji;
+    c.addEventListener('click', () => { state.currentReflection.vibe = i + 1; [...vibe.children].forEach(x=>x.classList.remove('active')); c.classList.add('active'); });
+    vibe.appendChild(c);
+  });
+  const chips = document.getElementById('feedbackChips');
+  chips.innerHTML = '';
+  FEEDBACK_TAGS.forEach((tag) => {
+    const c = document.createElement('button');
+    c.className='chip'; c.type='button'; c.textContent=tag;
+    c.addEventListener('click', () => {
+      if (c.classList.contains('active')) {
+        c.classList.remove('active');
+        state.currentReflection.tags = state.currentReflection.tags.filter((t) => t !== tag);
+      } else if (state.currentReflection.tags.length < 3) {
+        c.classList.add('active');
+        state.currentReflection.tags.push(tag);
+      } else toast('Max 3 feedback tags.');
+    });
+    chips.appendChild(c);
+  });
+  document.getElementById('meetOutcome').value = '';
+  document.getElementById('reflectionModal').showModal();
+}
+
+async function mockApiPost(path, body) {
+  if (path === '/api/meet_reflections') {
+    db.meet_reflections.push({ id: uuid(), ...body, created_at: new Date().toISOString() });
+    return { success: true };
+  }
+  if (path === '/api/daily_prompts/answers') {
+    state.dailyPromptAnswers[body.prompt_id] = body.answer;
+    return { success: true };
+  }
+  if (path === '/api/weekly_intent') {
+    const idx = db.user_weekly_intent.findIndex((x) => x.user_id === body.user_id);
+    if (idx >= 0) db.user_weekly_intent[idx] = body; else db.user_weekly_intent.push(body);
+    return { success: true };
+  }
+  return { success: false };
+}
+
+function updateReflectionStreak() {
+  const days = [...new Set(state.reflectionHistory)].sort();
+  const today = new Date();
+  const dayMs = 86400000;
+  let streak = 0;
+  let misses = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today.getTime() - i * dayMs).toISOString().slice(0, 10);
+    if (days.includes(d)) streak++;
+    else misses++;
+    if (misses >= 2) break;
+  }
+  state.streak = streak;
+}
+
+function computeTrustScore(userId) {
+  const refs = db.meet_reflections.filter((r) => r.user_id === userId);
+  const positive = refs.filter((r) => r.vibe_score >= 4).length;
+  const earlyExits = refs.filter((r) => r.meet_outcome === 'pass').length;
+  const score = Math.max(0, Math.min(100, 50 + positive * 8 - earlyExits * 12));
+  const idx = db.trust_score.findIndex((x) => x.user_id === userId);
+  if (idx >= 0) db.trust_score[idx].score = score; else db.trust_score.push({ user_id: userId, score });
+  return score;
+}
+function getTrustScore(userId){ return db.trust_score.find((x)=>x.user_id===userId)?.score ?? 50; }
+function applyCooldownsIfNeeded(userId){ if (getTrustScore(userId) < 30) { state.requireReflection = true; toast('Trust cooldown applied.'); } }
+
+function setupReflectionSubmit() {
+  document.getElementById('submitReflection').addEventListener('click', async () => {
+    const outcome = document.getElementById('meetOutcome').value;
+    if (!state.currentReflection.vibe || !OUTCOME_VALUES.includes(outcome)) return toast('Vibe rating and outcome are required.');
+
+    const payload = {
+      meet_id: state.currentReflection.meetId,
+      user_id: state.currentReflection.userId,
+      vibe_score: state.currentReflection.vibe,
+      feedback_tags: state.currentReflection.tags,
+      meet_outcome: outcome
+    };
+    const res = await mockApiPost('/api/meet_reflections', payload);
+    if (!res.success) return toast('Could not submit reflection.');
+
+    addXp(XP_REWARDS.completeReflection, 'Reflection submitted');
+    if (payload.feedback_tags.length >= 2) addXp(XP_REWARDS.detailedFeedback, 'Detailed feedback');
+
+    const day = new Date().toISOString().slice(0, 10);
+    if (!state.reflectionHistory.includes(day)) {
+      state.reflectionHistory.push(day);
+      updateReflectionStreak();
+      addXp(XP_REWARDS.dailyReflectionStreak, 'Daily reflection streak');
+    }
+
+    state.meetCount += 1;
+    if (state.meetCount < 3) forceReflectionBeforeNextMeet(); else state.requireReflection = false;
+
+    computeTrustScore(getUserId());
+    applyCooldownsIfNeeded(getUserId());
+
+    document.getElementById('reflectionModal').close();
+    emitEvent('REFLECTION_SUBMITTED', payload);
+    toast('Reflection submitted. Thanks!');
+    saveState();
+    refreshStats();
+  });
+}
+
+function setupDashboardData() {
+  document.getElementById('dailyPromptQuestion').textContent = DAILY_PROMPT.question;
+  document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
+    const ans = document.getElementById('dailyPromptAnswer').value.trim();
+    if (!ans) return toast('Please enter an answer.');
+    await mockApiPost('/api/daily_prompts/answers', { prompt_id: DAILY_PROMPT.id, user_id: getUserId(), answer: ans });
+    emitEvent('DAILY_PROMPT_COMPLETED', { prompt_id: DAILY_PROMPT.id });
+    addXp(5, 'Daily prompt');
     saveState();
   });
 
-  updateWizardUI(form);
-  updateLivePreview(form);
-}
-
-function formatClock(s) { return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
-
-function ringUpdate(seconds) {
-  const total = 60;
-  const pct = Math.min(seconds / total, 1);
-  const c = 327;
-  const ring = document.getElementById('ringProgress');
-  ring.style.strokeDashoffset = String(c - c * pct);
-  ring.style.stroke = seconds < 20 ? '#50E3C2' : seconds < 40 ? '#F5A623' : '#ef4444';
-}
-
-function startMatch() {
-  if (!state.profile) return toast('Please finish account setup first.');
-  state.match = { alias: 'SkyLumen', prompt: 0 };
-  state.matchSeconds = 0;
-  document.getElementById('anonAvatar').textContent = '👤';
-  document.getElementById('matchStatus').textContent = 'Matched anonymously with SkyLumen';
-  document.getElementById('sharedTraits').textContent = 'Empathy, Humor, Travel';
-  document.getElementById('currentPrompt').textContent = prompts[0];
-  document.getElementById('decisionGate').classList.add('hidden');
-  document.getElementById('friendReveal').classList.add('hidden');
-  document.getElementById('respondPromptBtn').disabled = false;
-  document.getElementById('reportBtn').disabled = false;
-  clearInterval(state.timer);
-  state.timer = setInterval(() => {
-    state.matchSeconds += 1;
-    document.getElementById('chatTimer').textContent = formatClock(state.matchSeconds);
-    ringUpdate(state.matchSeconds);
-    if ([20, 40, 60].includes(state.matchSeconds)) {
-      document.getElementById('decisionGate').classList.remove('hidden');
-      document.getElementById('matchStatus').textContent = `Checkpoint at ${(state.matchSeconds / 20) * 10} min`;
-      toast('Checkpoint reached. Choose whether to reveal profiles.');
-    }
-  }, 1000);
-}
-
-function endMatch() {
-  clearInterval(state.timer);
-  state.timer = null;
-  document.getElementById('respondPromptBtn').disabled = true;
-  document.getElementById('reportBtn').disabled = true;
-}
-
-function setupMatchFlow() {
-  document.getElementById('startMatchBtn').addEventListener('click', startMatch);
-  document.getElementById('respondPromptBtn').addEventListener('click', () => {
-    if (!state.match) return;
-    state.match.prompt = (state.match.prompt + 1) % prompts.length;
-    document.getElementById('currentPrompt').textContent = prompts[state.match.prompt];
-    document.getElementById('promptPanel').classList.add('bump');
-    setTimeout(() => document.getElementById('promptPanel').classList.remove('bump'), 180);
-    addXp(15, 'Meaningful response');
-    addActivity('Answered a guided prompt');
+  const weekly = document.getElementById('weeklyIntent');
+  const saved = db.user_weekly_intent.find((x) => x.user_id === getUserId());
+  if (saved) weekly.value = saved.intent;
+  document.getElementById('saveWeeklyIntent').addEventListener('click', async () => {
+    const intent = weekly.value;
+    await mockApiPost('/api/weekly_intent', { user_id: getUserId(), intent });
+    document.getElementById('weeklyIntentSaved').textContent = `Saved: ${intent}`;
+    emitEvent('WEEKLY_INTENT_SET', { intent });
   });
 
-  document.getElementById('emojiLike').addEventListener('click', () => toast('Reaction sent 👍'));
-  document.getElementById('emojiHeart').addEventListener('click', () => toast('Reaction sent 💙'));
-  document.getElementById('promptRating').addEventListener('change', (e) => toast(`Prompt rated ${e.target.value}`));
-
-  const modal = document.getElementById('reportModal');
-  document.getElementById('reportBtn').addEventListener('click', () => modal.showModal());
-  document.getElementById('cancelReport').addEventListener('click', () => modal.close());
-  document.getElementById('confirmReport').addEventListener('click', () => {
-    modal.close();
-    document.getElementById('matchStatus').textContent = 'Reported and blocked safely.';
-    addActivity('Reported and blocked a user');
-    endMatch();
-  });
-
-  document.querySelectorAll('#decisionGate [data-decision]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (!state.match) return;
-      const choice = btn.dataset.decision;
-      if (choice === 'yes') {
-        addXp(40, 'Mutual reveal');
-        const reveal = document.getElementById('friendReveal');
-        reveal.classList.remove('hidden');
-        reveal.innerHTML = `<strong>Friendship created 🎉</strong><p>You and ${state.match.alias} revealed profiles and unlocked friend chat.</p>`;
-        document.getElementById('matchStatus').textContent = 'Profiles revealed. You are now friends.';
-        confettiBurst();
-        addActivity('Matched and revealed profiles');
-        endMatch();
-      } else if (choice === 'notyet') {
-        document.getElementById('matchStatus').textContent = 'Continuing anonymously...';
-        document.getElementById('decisionGate').classList.add('hidden');
-      } else {
-        document.getElementById('matchStatus').textContent = 'Chat ended.';
-        endMatch();
-      }
-    });
-  });
+  const prev = state.dailyPromptAnswers[DAILY_PROMPT.id];
+  if (prev) document.getElementById('dailyPromptAnswer').value = prev;
 }
 
-function renderQuests() {
-  const root = document.getElementById('dailyQuests');
-  root.innerHTML = '';
-  state.quests.forEach((q) => {
-    const li = document.createElement('li');
-    li.innerHTML = `${q.text} <button class="btn ${q.done ? 'ghost' : 'primary'}" ${q.done ? 'disabled' : ''}>${q.done ? 'Done' : `+${q.reward} XP`}</button>`;
-    li.querySelector('button').addEventListener('click', () => {
-      if (q.done) return;
-      q.done = true;
-      addXp(q.reward, 'Quest complete');
-      confettiBurst();
-      addActivity(`Completed quest: ${q.text}`);
-      renderQuests();
-      saveState();
-    });
-    root.appendChild(li);
-  });
-}
-
-function renderBadges() {
-  const root = document.getElementById('badgeList');
-  root.innerHTML = '';
-  allBadges.forEach((badge) => {
-    const chip = document.createElement('span');
-    const earned = state.badges.includes(badge.name);
-    chip.className = `badge ${earned ? 'earned' : 'locked'}`;
-    chip.title = earned ? 'Earned' : 'Locked';
-    chip.textContent = badge.name;
-    root.appendChild(chip);
-  });
-}
-
-function renderRooms() {
-  const interest = document.getElementById('roomFilter').value;
-  const status = document.getElementById('roomStatus').value;
-  const root = document.getElementById('roomGrid');
-  root.innerHTML = '';
-
-  const filtered = rooms.filter((r) => (interest === 'all' || r.interest === interest) && (status === 'all' || r.status === status));
-  if (!filtered.length) {
-    root.innerHTML = '<article class="card"><p class="small">No rooms active for this filter yet.</p></article>';
-    return;
-  }
-
-  filtered.forEach((room) => {
-    const card = document.createElement('article');
-    card.className = 'card';
-    card.innerHTML = `<h3>${room.name}</h3><p class="small">👥 ${room.members} • 🕒 ${room.when} • ${room.cost}</p><p class="small">Status: ${room.status} • QR: ▣▣▢▣</p><button class="btn primary" type="button">Join Room</button>`;
-    card.querySelector('button').addEventListener('click', () => {
-      addXp(10, `Joined ${room.name}`);
-      addActivity(`Joined room: ${room.name}`);
-      toast(`Joined ${room.name}`);
-    });
-    root.appendChild(card);
-  });
-}
-
-function setupCommunity() {
-  document.getElementById('roomFilter').addEventListener('change', renderRooms);
-  document.getElementById('roomStatus').addEventListener('change', renderRooms);
-  renderRooms();
-  document.getElementById('joinCodeRoom').addEventListener('click', () => {
-    const code = document.getElementById('roomCodeInput').value.trim();
-    document.getElementById('codeRoomResult').textContent = code ? `Joined room ${code.toUpperCase()} successfully.` : 'Please enter a room code.';
-    if (code) {
-      addXp(5, 'Joined by code');
-      addActivity(`Joined private room ${code.toUpperCase()}`);
-    }
-  });
-  addActivity('Community rooms loaded');
-}
-
-function setupDashboard() {
-  const visibility = document.getElementById('privacyVisibility');
-  const anon = document.getElementById('anonToggle');
-  const summary = document.getElementById('privacySummary');
-  const update = () => summary.textContent = `Visibility: ${visibility.value}. Anonymous mode: ${anon.checked ? 'ON' : 'OFF'}.`;
-  visibility.addEventListener('change', update);
-  anon.addEventListener('change', update);
-  update();
-
-  document.getElementById('dailyPromptBtn').addEventListener('click', () => {
-    addXp(10, 'Daily prompt reward');
-    addActivity('Claimed daily prompt reward');
-  });
-
-  const chart = document.getElementById('activityChart');
-  [30, 52, 24, 60, 78, 46, 70].forEach((v) => {
-    const bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.style.height = `${v}%`;
-    chart.appendChild(bar);
-  });
-
-  let secs = 7200;
-  setInterval(() => {
-    secs = Math.max(0, secs - 1);
-    const h = String(Math.floor(secs / 3600)).padStart(2, '0');
-    const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
-    const s = String(secs % 60).padStart(2, '0');
-    document.getElementById('rewardCountdown').textContent = `${h}:${m}:${s}`;
-  }, 1000);
-}
-
-function setupTheme() {
+function setupThemeAndReset() {
   document.documentElement.setAttribute('data-theme', state.theme);
   const t = document.getElementById('themeToggle');
   t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
@@ -456,25 +423,14 @@ function setupTheme() {
     t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
     saveState();
   });
-}
-
-function setupReset() {
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    Object.values(storageKeys).forEach((k) => localStorage.removeItem(k));
-    location.reload();
-  });
+  document.getElementById('resetBtn').addEventListener('click', () => { Object.values(STORAGE).forEach((k) => localStorage.removeItem(k)); location.reload(); });
 }
 
 setupTabs();
-setupTheme();
+setupThemeAndReset();
 setupWizard();
-setupMatchFlow();
-setupCommunity();
-setupDashboard();
-setupReset();
+setupMeet();
+setupReflectionSubmit();
+setupDashboardData();
 refreshStats();
-refreshGamification();
-renderQuests();
-renderBadges();
-unlockBadges();
 saveState();
