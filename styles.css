@@ -1,0 +1,39 @@
+:root {
+  --primary: #4A90E2;
+  --secondary: #50E3C2;
+  --accent: #F5A623;
+  --bg: #F9FAFB;
+  --card: #FFFFFF;
+  --text: #1C1C1E;
+  --muted: #6B6B78;
+  --border: #E5E7EB;
+}
+html[data-theme='dark'] { --bg:#1E1E2F; --card:#2A2A3C; --text:#F6F7FA; --muted:#B5B6C6; --border:#40435C; }
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
+h1{font-size:28px} h2{font-size:20px} .small{font-size:12px;color:var(--muted)}
+.topbar{display:flex;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border)}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+.tab{height:60px;border:1px solid var(--border);border-radius:16px;background:var(--card);cursor:pointer;transition:.2s}
+.tab:hover{transform:scale(1.05)} .tab.active{background:var(--primary);color:#fff}
+.panel{display:none;opacity:0}.panel.active{display:block;animation:fade .2s forwards}
+@keyframes fade{to{opacity:1}}
+.card,.surface,dialog{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.card:hover{transform:scale(1.03);transition:.2s}
+.grid{display:grid;gap:16px}.cols-2{grid-template-columns:repeat(2,1fr)}.cols-3{grid-template-columns:repeat(3,1fr)}
+label{display:flex;flex-direction:column;gap:8px}input,select,textarea{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)}
+.progress-track{height:6px;background:#dbeafe;border-radius:999px;margin-bottom:16px}.progress-fill{height:100%;width:25%;background:linear-gradient(90deg,var(--primary),var(--secondary));border-radius:999px}
+.btn{padding:10px 14px;border:0;border-radius:8px;cursor:pointer;transition:.15s}.btn:hover{transform:scale(1.05)}.btn:active{transform:translateY(2px)}
+.btn.primary{background:var(--primary);color:#fff}.btn.success{background:var(--secondary)}.btn.warning{background:var(--accent)}.btn.ghost{border:1px solid var(--border);background:transparent}
+.wizard-actions,.button-row,.button-col{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.button-col{flex-direction:column}
+.slider-wrap{position:relative}.slider-wrap output{position:absolute;right:0;top:-20px;font-size:12px;color:var(--primary)}input[type='range']{width:100%;accent-color:var(--primary)}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:var(--bg);cursor:pointer}.chip.active{border-color:var(--primary);background:#eff6ff}
+.ring-wrap{position:relative;display:grid;place-items:center}.timer-ring{width:88px;height:88px;transform:rotate(-90deg)}.ring-bg,.ring-progress{fill:transparent;stroke-width:10}.ring-bg{stroke:#d1d5db}.ring-progress{stroke:var(--secondary);stroke-dasharray:327;stroke-dashoffset:327;transition:stroke-dashoffset .8s,stroke .2s}
+.xp-track{height:12px;background:#dbeafe;border-radius:999px}.xp-fill{height:100%;width:0;background:linear-gradient(90deg,var(--primary),var(--secondary));border-radius:999px}
+.badge-list{display:flex;flex-wrap:wrap;gap:8px}.badge{padding:8px 10px;border-radius:999px}.badge.locked{filter:grayscale(1);opacity:.5;border:1px dashed var(--border)}.badge.earned{background:#ffedd5}
+.toast-root{position:fixed;top:16px;right:16px;display:grid;gap:8px;z-index:999}.toast{padding:12px 14px;border-radius:12px;background:var(--card);border:1px solid var(--border);animation:slide .2s}.bg-shape{position:fixed;z-index:-1;border-radius:999px;opacity:.2;filter:blur(24px)}.shape-a{width:240px;height:240px;background:var(--primary);left:-50px;top:-50px}.shape-b{width:200px;height:200px;background:var(--secondary);right:-50px;bottom:20%}
+.hidden{display:none!important}
+@keyframes slide{from{transform:translateX(15px);opacity:0}}
+@media (max-width:1024px){.tabs{grid-template-columns:repeat(3,1fr)}.cols-3{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:768px){.tabs{grid-template-columns:repeat(2,1fr)}.cols-2,.cols-3{grid-template-columns:1fr}}
