@@ -113,7 +113,14 @@ function setupTabs() {
 }
 
 function summarizeProfile(data) {
-  return `${data.nickname || 'User'} • ${data.depth || 'Moderate'} depth • topics: ${data.topics || 'n/a'} • off-limits: ${data.offLimits || 'none'}`;
+  const points = [
+    `Nickname: ${data.nickname || 'User'}`,
+    `Age range: ${data.ageRange || 'Not set'}`,
+    `Depth: ${data.depth || 'Moderate'}`,
+    `Topics: ${data.topics || 'n/a'}`,
+    `Off-limits: ${data.offLimits || 'none'}`
+  ];
+  return points.join('\n');
 }
 
 function updateWizardUI() {
@@ -126,9 +133,61 @@ function updateWizardUI() {
 
 function setupWizard() {
   const form = document.getElementById('profileWizard');
-  if (state.profile) {
+  const createAccountCard = document.getElementById('createAccountCard');
+  const createAccountBtn = document.getElementById('createAccountBtn');
+  const accountSetupFlow = document.getElementById('accountSetupFlow');
+  const savedProfileCard = document.getElementById('savedProfileCard');
+  const savedProfileText = document.getElementById('savedProfileText');
+  const editProfileBtn = document.getElementById('editProfileBtn');
+
+  const fillFormFromProfile = () => {
+    if (!state.profile) return;
     for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
+  };
+
+  const renderSavedProfile = () => {
+    savedProfileText.textContent = summarizeProfile(state.profile || {});
+  };
+
+  const showCreateState = () => {
+    accountSetupFlow.classList.add('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.remove('hidden');
+  };
+
+  const showWizard = () => {
+    accountSetupFlow.classList.remove('hidden');
+    savedProfileCard.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+  };
+
+  const showSavedState = () => {
+    renderSavedProfile();
+    accountSetupFlow.classList.add('hidden');
+    createAccountCard.classList.add('hidden');
+    savedProfileCard.classList.remove('hidden');
+  };
+
+  if (state.profile) {
+    fillFormFromProfile();
+    showSavedState();
+  } else {
+    showCreateState();
   }
+
+  createAccountBtn.addEventListener('click', () => {
+    state.wizardStep = 1;
+    updateWizardUI();
+    showWizard();
+  });
+
+  editProfileBtn.addEventListener('click', () => {
+    fillFormFromProfile();
+    state.wizardStep = 1;
+    updateWizardUI();
+    form.dispatchEvent(new Event('input'));
+    showWizard();
+  });
 
   document.querySelectorAll('input[type="range"]').forEach((slider) => {
     const out = document.querySelector(`[data-output="${slider.name}"]`);
@@ -150,6 +209,7 @@ function setupWizard() {
     state.profile = Object.fromEntries(new FormData(form).entries());
     addXp(10, 'Profile saved');
     saveState();
+    showSavedState();
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
@@ -212,6 +272,23 @@ function forceReflectionBeforeNextMeet() {
   toast('Cold start mode: submit reflection before next meet.');
 }
 
+
+function showAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.remove('hidden');
+  input.disabled = false;
+  input.value = '';
+}
+
+function hideAnswerInput() {
+  const wrap = document.getElementById('promptAnswerWrap');
+  const input = document.getElementById('promptAnswerInput');
+  wrap.classList.add('hidden');
+  input.disabled = true;
+  input.value = '';
+}
+
 function startMeet() {
   if (!state.profile) return toast('Complete profile first.');
   if (state.requireReflection) return toast('Please submit pending reflection first.');
@@ -225,6 +302,7 @@ function startMeet() {
   state.meetId = uuid();
   state.meetSeconds = 0;
   document.getElementById('currentPrompt').textContent = prompts[0];
+  showAnswerInput();
   document.getElementById('respondPromptBtn').disabled = false;
   document.getElementById('reportBtn').disabled = false;
   emitEvent('MATCH_MADE', { meet_id: state.meetId, score });
@@ -247,6 +325,7 @@ function startMeet() {
 function endMeet(reason) {
   clearInterval(state.timer);
   document.getElementById('respondPromptBtn').disabled = true;
+  hideAnswerInput();
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
@@ -256,7 +335,12 @@ function endMeet(reason) {
 function setupMeet() {
   document.getElementById('startMatchBtn').addEventListener('click', startMeet);
   document.getElementById('respondPromptBtn').addEventListener('click', () => {
+    const answerInput = document.getElementById('promptAnswerInput');
+    const answer = answerInput.value.trim();
+    if (!answer) return toast('Please type an answer before submitting.');
     document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
+    hideAnswerInput();
+    document.getElementById('respondPromptBtn').disabled = true;
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
