@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { ConnectChatDto } from './dto/connect-chat.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateBasicProfileDto } from './dto/update-basic-profile.dto';
@@ -10,17 +10,17 @@ import { ProfileChatService } from './profile-chat.service';
 export class ProfileChatController {
   constructor(private readonly profileChatService: ProfileChatService) {}
 
-  @Patch('user/profile/basic')
+  @Post('profile/basic-info')
   updateBasic(@Body() dto: UpdateBasicProfileDto) {
     return this.profileChatService.updateBasic(dto);
   }
 
-  @Patch('user/profile/preferences')
+  @Post('profile/preferences')
   updatePreferences(@Body() dto: UpdatePreferencesDto) {
     return this.profileChatService.updatePreferences(dto);
   }
 
-  @Patch('user/profile/values')
+  @Post('profile/values-interests')
   updateValues(@Body() dto: UpdateValuesDto) {
     return this.profileChatService.updateValues(dto);
   }

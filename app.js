@@ -39,8 +39,32 @@ const state = {
   notifications: [],
   directChats: [],
   activeDirectChatId: null,
-  userConnections: JSON.parse(localStorage.getItem(STORAGE.userConnections) || '[]')
+  userConnections: JSON.parse(localStorage.getItem(STORAGE.userConnections) || '[]'),
+  chatConnectionByUserId: {}
 };
+
+const API_BASE = '/api';
+
+function toStringList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toPreferenceLevel(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['light', 'daily', 'low'].includes(normalized)) return 'low';
+  if (['moderate', 'weekly', 'medium'].includes(normalized)) return 'medium';
+  if (['deep', 'occasional', 'high'].includes(normalized)) return 'high';
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 'medium';
+  if (numericValue <= 33) return 'low';
+  if (numericValue <= 66) return 'medium';
+  return 'high';
+}
 
 
 const backendParam = new URLSearchParams(window.location.search).get('backend');
@@ -435,16 +459,81 @@ function setupWizard() {
     document.getElementById('wizardNext').disabled = state.wizardStep === 1 && !(data.nickname && data.ageRange);
   });
 
-  document.getElementById('wizardNext').addEventListener('click', () => { state.wizardStep = Math.min(4, state.wizardStep + 1); updateWizardUI(); });
+  const wizardNextBtn = document.getElementById('wizardNext');
+  const wizardSubmitBtn = document.getElementById('wizardSubmit');
+
+  async function submitProfileStep(step, formData) {
+    const basicPayload = {
+      nickname: String(formData.nickname || '').trim(),
+      ageRange: String(formData.ageRange || '').trim(),
+      location: String(formData.location || '').trim(),
+      topics: toStringList(formData.topics)
+    };
+
+    const preferencesPayload = {
+      depth: toPreferenceLevel(formData.depth),
+      frequency: toPreferenceLevel(formData.frequency),
+      directness: toPreferenceLevel(formData.directness),
+      humor: toPreferenceLevel(formData.humor),
+      offLimits: toStringList(formData.offLimits)
+    };
+
+    const valuesPayload = {
+      values: [
+        `empathy:${formData.valueEmpathy}`,
+        `creativity:${formData.valueCreativity}`
+      ],
+      interests: [
+        `travel:${formData.interestTravel}`,
+        `music:${formData.interestMusic}`
+      ]
+    };
+
+    if (step === 1) return window.postRequest(`${API_BASE}/profile/basic-info`, basicPayload);
+    if (step === 2) return window.postRequest(`${API_BASE}/profile/preferences`, preferencesPayload);
+    if (step === 3) return window.postRequest(`${API_BASE}/profile/values-interests`, valuesPayload);
+    return null;
+  }
+
+  wizardNextBtn.addEventListener('click', async () => {
+    const data = Object.fromEntries(new FormData(form).entries());
+    const currentStep = state.wizardStep;
+
+    try {
+      wizardNextBtn.disabled = true;
+      await submitProfileStep(currentStep, data);
+      state.profile = { ...state.profile, ...data };
+      saveCurrentAccount();
+      renderAccountOverview();
+      saveState();
+      state.wizardStep = Math.min(4, state.wizardStep + 1);
+      updateWizardUI();
+    } catch (error) {
+      toast(`Unable to save step ${currentStep}. Please retry.`);
+      console.error(error);
+    } finally {
+      wizardNextBtn.disabled = false;
+    }
+  });
   document.getElementById('wizardBack').addEventListener('click', () => { state.wizardStep = Math.max(1, state.wizardStep - 1); updateWizardUI(); });
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    state.profile = Object.fromEntries(new FormData(form).entries());
-    saveCurrentAccount();
-    renderAccountOverview();
-    addXp(10, 'Profile saved');
-    saveState();
-    hideWizard();
+    const data = Object.fromEntries(new FormData(form).entries());
+    try {
+      wizardSubmitBtn.disabled = true;
+      await submitProfileStep(3, data);
+      state.profile = data;
+      saveCurrentAccount();
+      renderAccountOverview();
+      addXp(10, 'Profile saved');
+      saveState();
+      hideWizard();
+    } catch (error) {
+      toast('Unable to save profile. Please retry.');
+      console.error(error);
+    } finally {
+      wizardSubmitBtn.disabled = false;
+    }
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
@@ -582,13 +671,18 @@ function renderConnectionsList() {
 }
 
 async function linkUsersAndRefreshConnections(userId, linkedUserId) {
-  const response = await apiClient.linkUsers(userId, linkedUserId);
-  if (!response?.success) return;
+  const connectResponse = await window.postRequest(`${API_BASE}/chat/connect`, { userId: linkedUserId });
+  if (!connectResponse?.chatId) return;
 
-  const connections = await apiClient.getUserConnections(userId);
-  state.userConnections = connections.connections || [];
-  saveState();
-  renderConnectionsList();
+  state.chatConnectionByUserId[linkedUserId] = connectResponse.chatId;
+
+  const response = await apiClient.linkUsers(userId, linkedUserId);
+  if (response?.success) {
+    const connections = await apiClient.getUserConnections(userId);
+    state.userConnections = connections.connections || [];
+    saveState();
+    renderConnectionsList();
+  }
 }
 
 async function loadConnections() {
@@ -877,24 +971,45 @@ function setupDirectChat() {
     setDirectChatExpanded(!isExpanded);
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = input.value.trim();
     if (!text) return;
     const active = state.directChats.find((chat) => chat.id === state.activeDirectChatId) || state.directChats[0];
     if (!active) return toast('No direct chat available yet.');
 
-    active.messages.push({
-      id: uuid(),
-      from: 'user',
-      text,
-      createdAt: new Date().toISOString()
-    });
-    active.updatedAt = new Date().toISOString();
-    state.directChats = [active, ...state.directChats.filter((chat) => chat.id !== active.id)];
-    state.activeDirectChatId = active.id;
-    input.value = '';
-    renderDirectChatCollapsed();
-    renderDirectChatHistory();
+    const linkedUserId = active.sender;
+    const existingChatId = state.chatConnectionByUserId[linkedUserId];
+
+    try {
+      sendBtn.disabled = true;
+      const chatId = existingChatId
+        ? existingChatId
+        : (await window.postRequest(`${API_BASE}/chat/connect`, { userId: linkedUserId })).chatId;
+
+      await window.postRequest(`${API_BASE}/chat/message`, {
+        chatId,
+        message: text
+      });
+
+      state.chatConnectionByUserId[linkedUserId] = chatId;
+      active.messages.push({
+        id: uuid(),
+        from: 'user',
+        text,
+        createdAt: new Date().toISOString()
+      });
+      active.updatedAt = new Date().toISOString();
+      state.directChats = [active, ...state.directChats.filter((chat) => chat.id !== active.id)];
+      state.activeDirectChatId = active.id;
+      input.value = '';
+      renderDirectChatCollapsed();
+      renderDirectChatHistory();
+    } catch (error) {
+      toast('Message failed to send. Please try again.');
+      console.error(error);
+    } finally {
+      sendBtn.disabled = false;
+    }
   };
 
   collapsed.addEventListener('click', togglePanel);
