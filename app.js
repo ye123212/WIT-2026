@@ -1,5 +1,5 @@
 const STORAGE = {
-  accounts: 'witAccounts', authSession: 'witAuthSession',
+  accounts: 'witAccounts', authSession: 'witAuthSession', backendMode: 'witBackendMode',
   profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', theme: 'witTheme',
   meetCount: 'witMeetCount', reflectionHistory: 'witReflectionHistory', weeklyIntent: 'witWeeklyIntent', dailyPromptAnswers:'witDailyPromptAnswers', trust:'witTrust', userConnections: 'witUserConnections'
 };
@@ -43,7 +43,9 @@ const state = {
 };
 
 
-const USE_BACKEND = new URLSearchParams(window.location.search).get('backend') === '1';
+const backendParam = new URLSearchParams(window.location.search).get('backend');
+const storedBackendMode = localStorage.getItem(STORAGE.backendMode);
+const USE_BACKEND = backendParam === '1' ? true : backendParam === '0' ? false : storedBackendMode === '1';
 
 const apiClient = window.createApiClient({
   baseUrl: '/api',
@@ -1093,6 +1095,8 @@ function setupDashboardData() {
 function setupThemeAndReset() {
   document.documentElement.setAttribute('data-theme', state.theme);
   const t = document.getElementById('themeToggle');
+  const backendToggle = document.getElementById('backendToggle');
+
   t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
   t.addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -1100,6 +1104,27 @@ function setupThemeAndReset() {
     t.textContent = state.theme === 'dark' ? '☀️' : '🌙';
     saveState();
   });
+
+  if (backendToggle) {
+    const renderBackendToggle = () => {
+      backendToggle.textContent = USE_BACKEND ? 'Backend: ON' : 'Backend: OFF';
+      backendToggle.classList.toggle('active', USE_BACKEND);
+      backendToggle.setAttribute('aria-pressed', USE_BACKEND ? 'true' : 'false');
+      backendToggle.title = USE_BACKEND
+        ? 'Live backend mode is enabled. Click to switch to frontend-only mode.'
+        : 'Frontend-only mode is enabled (backend bypassed). Click to enable backend mode.';
+    };
+
+    renderBackendToggle();
+
+    backendToggle.addEventListener('click', () => {
+      const nextMode = USE_BACKEND ? '0' : '1';
+      localStorage.setItem(STORAGE.backendMode, nextMode);
+      toast(nextMode === '1' ? 'Backend mode enabled. Reloading…' : 'Frontend-only mode enabled. Reloading…');
+      setTimeout(() => location.reload(), 250);
+    });
+  }
+
   document.getElementById('resetBtn').addEventListener('click', () => { Object.values(STORAGE).forEach((k) => localStorage.removeItem(k)); location.reload(); });
 }
 
