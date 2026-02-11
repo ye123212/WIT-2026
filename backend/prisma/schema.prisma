@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model MeetReflection {
+  id           String   @id @default(uuid())
+  meetId       String
+  userId       String
+  vibeScore    Int
+  meetOutcome  String
+  feedbackTags Json?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model DailyPromptAnswer {
+  id        String   @id @default(uuid())
+  promptId  String
+  userId    String
+  answer    String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model WeeklyIntent {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  intent    String
+  updatedAt DateTime @updatedAt
+}
+
+model TrustScore {
+  userId          String   @id
+  score           Int      @default(50)
+  cooldownApplied Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
