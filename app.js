@@ -35,6 +35,30 @@ const state = {
   notifications: []
 };
 
+
+const USE_BACKEND = new URLSearchParams(window.location.search).get('backend') === '1';
+
+const apiClient = window.createApiClient({
+  baseUrl: '/api',
+  useNetwork: USE_BACKEND,
+  fallback: {
+    submitMeetReflection: async (body) => {
+      db.meet_reflections.push({ id: uuid(), ...body, created_at: new Date().toISOString() });
+      return { success: true };
+    },
+    submitDailyPromptAnswer: async (body) => {
+      state.dailyPromptAnswers[body.prompt_id] = body.answer;
+      return { success: true };
+    },
+    submitWeeklyIntent: async (body) => {
+      const idx = db.user_weekly_intent.findIndex((x) => x.user_id === body.user_id);
+      if (idx >= 0) db.user_weekly_intent[idx] = body; else db.user_weekly_intent.push(body);
+      return { success: true };
+    },
+    getTrustScore: async (userId) => ({ user_id: userId, score: getTrustScore(userId), cooldown_applied: false })
+  }
+});
+
 const prompts = [
   'Your house catches fire. After saving loved ones and pets, what one item do you save and why?',
   'If you could relive one day in your life, which would it be and why?',
@@ -559,23 +583,6 @@ function openReflectionModal(meetId, userId, reason) {
   document.getElementById('reflectionModal').showModal();
 }
 
-async function mockApiPost(path, body) {
-  if (path === '/api/meet_reflections') {
-    db.meet_reflections.push({ id: uuid(), ...body, created_at: new Date().toISOString() });
-    return { success: true };
-  }
-  if (path === '/api/daily_prompts/answers') {
-    state.dailyPromptAnswers[body.prompt_id] = body.answer;
-    return { success: true };
-  }
-  if (path === '/api/weekly_intent') {
-    const idx = db.user_weekly_intent.findIndex((x) => x.user_id === body.user_id);
-    if (idx >= 0) db.user_weekly_intent[idx] = body; else db.user_weekly_intent.push(body);
-    return { success: true };
-  }
-  return { success: false };
-}
-
 function updateReflectionStreak() {
   const days = [...new Set(state.reflectionHistory)].sort();
   const today = new Date();
@@ -603,6 +610,16 @@ function computeTrustScore(userId) {
 function getTrustScore(userId){ return db.trust_score.find((x)=>x.user_id===userId)?.score ?? 50; }
 function applyCooldownsIfNeeded(userId){ if (getTrustScore(userId) < 30) { state.requireReflection = true; toast('Trust cooldown applied.'); } }
 
+
+async function syncTrustScoreFromApi() {
+  if (!USE_BACKEND) return;
+  const trust = await apiClient.getTrustScore(getUserId());
+  const idx = db.trust_score.findIndex((x) => x.user_id === trust.user_id);
+  const entry = { user_id: trust.user_id, score: trust.score, cooldown_applied: trust.cooldown_applied };
+  if (idx >= 0) db.trust_score[idx] = entry;
+  else db.trust_score.push(entry);
+}
+
 function setupReflectionSubmit() {
   document.getElementById('submitReflection').addEventListener('click', async () => {
     const outcome = document.getElementById('meetOutcome').value;
@@ -615,7 +632,7 @@ function setupReflectionSubmit() {
       feedback_tags: state.currentReflection.tags,
       meet_outcome: outcome
     };
-    const res = await mockApiPost('/api/meet_reflections', payload);
+    const res = await apiClient.submitMeetReflection(payload);
     if (!res.success) return toast('Could not submit reflection.');
 
     addXp(XP_REWARDS.completeReflection, 'Reflection submitted');
@@ -631,7 +648,8 @@ function setupReflectionSubmit() {
     state.meetCount += 1;
     if (state.meetCount < 3) forceReflectionBeforeNextMeet(); else state.requireReflection = false;
 
-    computeTrustScore(getUserId());
+    if (USE_BACKEND) await syncTrustScoreFromApi();
+    else computeTrustScore(getUserId());
     applyCooldownsIfNeeded(getUserId());
 
     document.getElementById('reflectionModal').close();
@@ -648,7 +666,7 @@ function setupDashboardData() {
   document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
     const ans = document.getElementById('dailyPromptAnswer').value.trim();
     if (!ans) return toast('Please enter an answer.');
-    await mockApiPost('/api/daily_prompts/answers', { prompt_id: DAILY_PROMPT.id, user_id: getUserId(), answer: ans });
+    await apiClient.submitDailyPromptAnswer({ prompt_id: DAILY_PROMPT.id, user_id: getUserId(), answer: ans });
     emitEvent('DAILY_PROMPT_COMPLETED', { prompt_id: DAILY_PROMPT.id });
     addXp(5, 'Daily prompt');
     saveState();
@@ -659,7 +677,7 @@ function setupDashboardData() {
   if (saved) weekly.value = saved.intent;
   document.getElementById('saveWeeklyIntent').addEventListener('click', async () => {
     const intent = weekly.value;
-    await mockApiPost('/api/weekly_intent', { user_id: getUserId(), intent });
+    await apiClient.submitWeeklyIntent({ user_id: getUserId(), intent });
     document.getElementById('weeklyIntentSaved').textContent = `Saved: ${intent}`;
     emitEvent('WEEKLY_INTENT_SET', { intent });
   });
