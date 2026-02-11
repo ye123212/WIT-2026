@@ -19,7 +19,7 @@ export class CreateMeetReflectionDto {
 
   @IsOptional()
   @IsArray()
-  @MaxLength(3)
+  @ArrayMaxSize(3)
   @IsString({ each: true })
   feedback_tags?: string[];
 }
