@@ -31,6 +31,7 @@
       <button class="tab" data-tab="meet" type="button">Meet Someone</button>
       <button class="tab" data-tab="gamification" type="button">Gamification</button>
       <button class="tab" data-tab="community" type="button">Community</button>
+      <button class="tab" data-tab="notifications" type="button">Notifications</button>
     </nav>
 
     <section id="setup" class="panel active" role="tabpanel">
@@ -139,13 +140,8 @@
           </div>
         </article>
         <article id="decisionGate" class="card hidden">
-          <h3>Checkpoint: Make a friend?</h3>
-          <div class="button-col">
-            <button data-decision="yes" class="btn primary" type="button">Reveal</button>
-            <button data-decision="notyet" class="btn success" type="button">Not Yet</button>
-            <button data-decision="end" class="btn ghost" type="button">End Chat</button>
-          </div>
-          <div id="friendReveal" class="surface hidden"></div>
+          <h3>Request Status</h3>
+          <p id="requestSentMessage" class="small">No request sent yet.</p>
         </article>
       </div>
     </section>
@@ -185,6 +181,36 @@
     <section id="community" class="panel" role="tabpanel">
       <h2>Community</h2>
       <div class="card"><p>Rooms and activity feed remain from prior prototype behavior.</p></div>
+    </section>
+
+    <section id="notifications" class="panel" role="tabpanel">
+      <h2>Notifications</h2>
+      <article class="card">
+        <h3>All Notifications</h3>
+        <p id="accountRequestNotice" class="small">No new question requests yet.</p>
+        <div id="notificationList" class="surface"></div>
+      </article>
+
+      <article class="card hidden" id="incomingRequestCard">
+        <h3>Incoming Question Request</h3>
+        <p id="incomingRequestSummary" class="small"></p>
+        <div class="button-row">
+          <button id="acceptRequestBtn" class="btn success" type="button">Accept</button>
+          <button id="rejectRequestBtn" class="btn ghost" type="button">Reject</button>
+        </div>
+      </article>
+
+      <article class="card hidden" id="requestChatCard">
+        <h3>Typing Chat (Prototype)</h3>
+        <div id="requestChatLog" class="surface"></div>
+        <label>Reply message
+          <textarea id="requestChatInput" rows="3" placeholder="Type your reply..."></textarea>
+        </label>
+        <div class="button-row">
+          <button id="sendChatReplyBtn" class="btn primary" type="button">Send Reply</button>
+          <button id="startCallBtn" class="btn ghost" type="button" disabled>Start Call (Disabled)</button>
+        </div>
+      </article>
     </section>
 
   </main>

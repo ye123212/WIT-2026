@@ -29,7 +29,10 @@ const state = {
   reflectionHistory: JSON.parse(localStorage.getItem(STORAGE.reflectionHistory) || '[]'),
   requireReflection: false,
   currentReflection: { meetId: '', userId: '', reason: '', vibe: 0, tags: [] },
-  dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}')
+  dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}'),
+  activeRequest: null,
+  requestStatus: 'idle',
+  notifications: []
 };
 
 const prompts = [
@@ -310,6 +313,55 @@ function hideAnswerInput() {
   input.value = '';
 }
 
+function resetMeetTimerUI() {
+  state.meetSeconds = 0;
+  document.getElementById('chatTimer').textContent = '00:00';
+  const ring = document.getElementById('ringProgress');
+  ring.style.strokeDashoffset = '327';
+  ring.style.stroke = '#50E3C2';
+}
+
+function updateRequestStatus(message, show = true) {
+  const gate = document.getElementById('decisionGate');
+  const label = document.getElementById('requestSentMessage');
+  label.textContent = message;
+  gate.classList.toggle('hidden', !show);
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notificationList');
+  const notice = document.getElementById('accountRequestNotice');
+  if (!state.notifications.length) {
+    notice.textContent = 'No new question requests yet.';
+    list.textContent = 'No notifications.';
+    return;
+  }
+  notice.textContent = `${state.notifications.length} notification(s)`;
+  list.innerHTML = '';
+  state.notifications.forEach((n) => {
+    const row = document.createElement('div');
+    row.className = 'notification-item';
+    row.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}`;
+    list.appendChild(row);
+  });
+}
+
+function renderIncomingRequest() {
+  const incomingCard = document.getElementById('incomingRequestCard');
+  const incomingSummary = document.getElementById('incomingRequestSummary');
+  const pending = state.notifications.find((x) => x.status === 'Pending');
+  if (!pending) {
+    state.activeRequest = null;
+    incomingCard.classList.add('hidden');
+    renderNotifications();
+    return;
+  }
+  state.activeRequest = pending;
+  incomingSummary.textContent = `Question asked by ${pending.sender}: "${pending.prompt}" • Submitted answer: "${pending.answer}" • Status: ${pending.status}`;
+  incomingCard.classList.remove('hidden');
+  renderNotifications();
+}
+
 function startMeet() {
   if (!state.profile) return toast('Complete profile first.');
   if (state.requireReflection) return toast('Please submit pending reflection first.');
@@ -321,7 +373,11 @@ function startMeet() {
   document.getElementById('matchReasons').textContent = reasons.join(' • ') || 'Strong compatibility signals';
   document.getElementById('matchStatus').textContent = `Matched (score ${score.toFixed(2)})`;
   state.meetId = uuid();
-  state.meetSeconds = 0;
+  resetMeetTimerUI();
+  state.requestStatus = 'idle';
+  document.getElementById('requestChatCard').classList.add('hidden');
+  renderIncomingRequest();
+  updateRequestStatus('No request sent yet.', false);
   document.getElementById('currentPrompt').textContent = prompts[0];
   showAnswerInput();
   document.getElementById('respondPromptBtn').disabled = false;
@@ -336,7 +392,6 @@ function startMeet() {
     const pct = Math.min(state.meetSeconds / 60, 1);
     ring.style.strokeDashoffset = String(327 - 327 * pct);
     ring.style.stroke = state.meetSeconds < 20 ? '#50E3C2' : state.meetSeconds < 40 ? '#F5A623' : '#ef4444';
-    if ([20,40,60].includes(state.meetSeconds)) document.getElementById('decisionGate').classList.remove('hidden');
     if (state.meetSeconds >= 60) {
       endMeet('timeout');
     }
@@ -349,6 +404,7 @@ function endMeet(reason) {
   hideAnswerInput();
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
+  document.getElementById('requestChatCard').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
   onMeetEnd(state.meetId, getUserId(), reason);
 }
@@ -359,20 +415,57 @@ function setupMeet() {
     const answerInput = document.getElementById('promptAnswerInput');
     const answer = answerInput.value.trim();
     if (!answer) return toast('Please type an answer before submitting.');
-    document.getElementById('currentPrompt').textContent = prompts[Math.floor(Math.random()*prompts.length)];
+
+    const currentPrompt = document.getElementById('currentPrompt').textContent;
+    const notification = { id: uuid(), sender: getUserId(), prompt: currentPrompt, answer, status: 'Pending' };
+    state.notifications.unshift(notification);
+    state.activeRequest = notification;
+    state.requestStatus = 'sent';
+    clearInterval(state.timer);
+    resetMeetTimerUI();
+
     hideAnswerInput();
     document.getElementById('respondPromptBtn').disabled = true;
+    updateRequestStatus('Request sent successfully. Waiting for receiver action.', true);
+    renderIncomingRequest();
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
   document.getElementById('reportBtn').addEventListener('click', () => reportModal.showModal());
   document.getElementById('cancelReport').addEventListener('click', () => reportModal.close());
   document.getElementById('confirmReport').addEventListener('click', () => { reportModal.close(); endMeet('left_early'); });
-  document.querySelectorAll('#decisionGate [data-decision]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.decision === 'yes') { document.getElementById('friendReveal').classList.remove('hidden'); document.getElementById('friendReveal').textContent='Profiles revealed!'; endMeet('completed'); }
-    else if (b.dataset.decision === 'notyet') document.getElementById('decisionGate').classList.add('hidden');
-    else endMeet('left_early');
-  }));
+  document.getElementById('acceptRequestBtn').addEventListener('click', () => {
+    if (!state.activeRequest) return;
+    state.activeRequest.status = 'Accepted';
+    document.getElementById('incomingRequestSummary').textContent = `Accepted question from ${state.activeRequest.sender}: "${state.activeRequest.prompt}" • Sender answer: "${state.activeRequest.answer}"`;
+    renderNotifications();
+    const chatLog = document.getElementById('requestChatLog');
+    chatLog.textContent = `${state.activeRequest.sender}: ${state.activeRequest.answer}`;
+    document.getElementById('requestChatCard').classList.remove('hidden');
+    updateRequestStatus('Receiver accepted the request. Typing chat opened.', true);
+    document.getElementById('incomingRequestCard').classList.add('hidden');
+
+  });
+
+  document.getElementById('rejectRequestBtn').addEventListener('click', () => {
+    if (!state.activeRequest) return;
+    state.activeRequest.status = 'Rejected';
+    document.getElementById('incomingRequestCard').classList.add('hidden');
+    document.getElementById('requestChatCard').classList.add('hidden');
+    updateRequestStatus('Receiver rejected the request.', true);
+    state.activeRequest = null;
+    renderIncomingRequest();
+  });
+
+  document.getElementById('sendChatReplyBtn').addEventListener('click', () => {
+    const input = document.getElementById('requestChatInput');
+    const text = input.value.trim();
+    if (!text) return toast('Type a reply message first.');
+    const chatLog = document.getElementById('requestChatLog');
+    chatLog.textContent += `
+Receiver: ${text}`;
+    input.value = '';
+  });
 }
 
 // Reflection flow
@@ -494,6 +587,8 @@ function setupReflectionSubmit() {
 }
 
 function setupDashboardData() {
+  renderNotifications();
+  renderIncomingRequest();
   document.getElementById('dailyPromptQuestion').textContent = DAILY_PROMPT.question;
   document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
     const ans = document.getElementById('dailyPromptAnswer').value.trim();
