@@ -27,57 +27,94 @@
 
   <main class="container">
     <nav class="tabs" role="tablist" aria-label="Platform sections">
-      <button class="tab active" data-tab="setup" type="button">Account Setup</button>
+      <button class="tab active" data-tab="setup" type="button">Account Overview</button>
       <button class="tab" data-tab="meet" type="button">Meet Someone</button>
       <button class="tab" data-tab="gamification" type="button">Gamification</button>
       <button class="tab" data-tab="community" type="button">Community</button>
-      <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
     </nav>
 
     <section id="setup" class="panel active" role="tabpanel">
-      <h2>Account Setup Wizard</h2>
-      <div class="progress-track"><div id="wizardProgress" class="progress-fill"></div></div>
-      <div class="grid cols-2">
-        <form id="profileWizard" class="card">
-          <div class="wizard-step" data-step="1">
-            <h3>Step 1: Basic Info</h3>
-            <div class="grid cols-2">
-              <label>Nickname<input required name="nickname" placeholder="NovaBloom" /></label>
-              <label>Age Range<select required name="ageRange"><option value="">Select</option><option>18–24</option><option>25–34</option><option>35–44</option><option>45+</option></select></label>
-              <label>Location (optional)<input name="location" placeholder="City / Country" /></label>
-              <label>Topics (comma-separated)<input name="topics" value="travel,music,books" /></label>
+      <h2>Account Overview</h2>
+      <article class="card" id="createAccountCard">
+        <h3>Account Setup</h3>
+        <p class="small">Start by creating your account profile to unlock the setup wizard.</p>
+        <button id="createAccountBtn" class="btn primary" type="button">Create Account</button>
+      </article>
+
+      <article class="card hidden" id="savedProfileCard">
+        <h3>Your Profile</h3>
+        <div id="savedProfileText" class="surface profile-points"></div>
+        <div class="wizard-actions">
+          <button id="editProfileBtn" class="btn primary" type="button">Edit</button>
+        </div>
+      </article>
+
+      <div id="accountSetupFlow" class="hidden">
+        <h3>Account Setup Wizard</h3>
+        <div class="progress-track"><div id="wizardProgress" class="progress-fill"></div></div>
+        <div class="grid cols-2">
+          <form id="profileWizard" class="card">
+            <div class="wizard-step" data-step="1">
+              <h3>Step 1: Basic Info</h3>
+              <div class="grid cols-2">
+                <label>Nickname<input required name="nickname" placeholder="NovaBloom" /></label>
+                <label>Age Range<select required name="ageRange"><option value="">Select</option><option>18–24</option><option>25–34</option><option>35–44</option><option>45+</option></select></label>
+                <label>Location (optional)<input name="location" placeholder="City / Country" /></label>
+                <label>Topics (comma-separated)<input name="topics" value="travel,music,books" /></label>
+              </div>
             </div>
-          </div>
-          <div class="wizard-step hidden" data-step="2">
-            <h3>Step 2: Preferences</h3>
-            <div class="grid cols-2">
-              <label>Depth<select name="depth"><option>Light</option><option>Moderate</option><option selected>Deep</option></select></label>
-              <label>Frequency<select name="frequency"><option>Daily</option><option selected>Weekly</option><option>Occasional</option></select></label>
-              <label>Directness<div class="slider-wrap"><output data-output="directness">70</output><input type="range" min="0" max="100" value="70" name="directness" /></div></label>
-              <label>Humor<div class="slider-wrap"><output data-output="humor">80</output><input type="range" min="0" max="100" value="80" name="humor" /></div></label>
-              <label class="full">Off-limits<input name="offLimits" value="Politics" /></label>
+            <div class="wizard-step hidden" data-step="2">
+              <h3>Step 2: Preferences</h3>
+              <div class="grid cols-2">
+                <label>Depth<select name="depth"><option>Light</option><option>Moderate</option><option selected>Deep</option></select></label>
+                <label>Frequency<select name="frequency"><option>Daily</option><option selected>Weekly</option><option>Occasional</option></select></label>
+                <label>Directness<div class="slider-wrap"><output data-output="directness">70</output><input type="range" min="0" max="100" value="70" name="directness" /></div></label>
+                <label>Humor<div class="slider-wrap"><output data-output="humor">80</output><input type="range" min="0" max="100" value="80" name="humor" /></div></label>
+                <label class="full">Off-limits<input name="offLimits" value="Politics" /></label>
+              </div>
             </div>
-          </div>
-          <div class="wizard-step hidden" data-step="3">
-            <h3>Step 3: Values & Interests</h3>
-            <div class="grid cols-2">
-              <label>Empathy<div class="slider-wrap"><output data-output="valueEmpathy">90</output><input type="range" min="0" max="100" value="90" name="valueEmpathy" /></div></label>
-              <label>Creativity<div class="slider-wrap"><output data-output="valueCreativity">85</output><input type="range" min="0" max="100" value="85" name="valueCreativity" /></div></label>
-              <label>Travel<div class="slider-wrap"><output data-output="interestTravel">70</output><input type="range" min="0" max="100" value="70" name="interestTravel" /></div></label>
-              <label>Music<div class="slider-wrap"><output data-output="interestMusic">80</output><input type="range" min="0" max="100" value="80" name="interestMusic" /></div></label>
+            <div class="wizard-step hidden" data-step="3">
+              <h3>Step 3: Values & Interests</h3>
+              <div class="grid cols-2">
+                <label>Empathy<div class="slider-wrap"><output data-output="valueEmpathy">90</output><input type="range" min="0" max="100" value="90" name="valueEmpathy" /></div></label>
+                <label>Creativity<div class="slider-wrap"><output data-output="valueCreativity">85</output><input type="range" min="0" max="100" value="85" name="valueCreativity" /></div></label>
+                <label>Travel<div class="slider-wrap"><output data-output="interestTravel">70</output><input type="range" min="0" max="100" value="70" name="interestTravel" /></div></label>
+                <label>Music<div class="slider-wrap"><output data-output="interestMusic">80</output><input type="range" min="0" max="100" value="80" name="interestMusic" /></div></label>
+              </div>
             </div>
-          </div>
-          <div class="wizard-step hidden" data-step="4">
-            <h3>Step 4: Summary</h3>
-            <div id="profileSummary" class="surface"></div>
-          </div>
-          <div class="wizard-actions">
-            <button id="wizardBack" class="btn ghost" type="button">Back</button>
-            <button id="wizardNext" class="btn primary" type="button">Next</button>
-            <button id="wizardSubmit" class="btn success hidden" type="submit">Save Profile</button>
-          </div>
-        </form>
-        <article class="card"><h3>Live Preview</h3><div id="livePreview" class="surface"></div></article>
+            <div class="wizard-step hidden" data-step="4">
+              <h3>Step 4: Summary</h3>
+              <div id="profileSummary" class="surface profile-points"></div>
+            </div>
+            <div class="wizard-actions">
+              <button id="wizardBack" class="btn ghost" type="button">Back</button>
+              <button id="wizardNext" class="btn primary" type="button">Next</button>
+              <button id="wizardSubmit" class="btn success hidden" type="submit">Save Profile</button>
+            </div>
+          </form>
+          <article class="card"><h3>Live Preview</h3><div id="livePreview" class="surface profile-points"></div></article>
+        </div>
+      </div>
+
+      <h3>Dashboard Snapshot</h3>
+      <div class="grid cols-3">
+        <article class="card">
+          <h3>Daily Prompt</h3>
+          <p id="dailyPromptQuestion"></p>
+          <textarea id="dailyPromptAnswer" rows="2" placeholder="1-2 line answer"></textarea>
+          <button id="saveDailyPrompt" class="btn primary" type="button">Save Prompt</button>
+        </article>
+        <article class="card">
+          <h3>Weekly Intent</h3>
+          <select id="weeklyIntent"><option>Meet 2 thoughtful people</option><option>Practice better listening</option><option>Join 1 new community room</option></select>
+          <button id="saveWeeklyIntent" class="btn success" type="button">Set Intent</button>
+          <p id="weeklyIntentSaved" class="small"></p>
+        </article>
+        <article class="card">
+          <h3>Reflection Streak</h3>
+          <p id="reflectionStreakLabel">0 days</p>
+          <p class="small">Resets after 2 missed consecutive days.</p>
+        </article>
       </div>
     </section>
 
@@ -92,9 +129,12 @@
             <span id="chatTimer">00:00</span>
           </div>
           <div class="surface" id="promptPanel"><p id="currentPrompt">Press Find Match to start.</p></div>
+          <label>Type your answer
+            <textarea id="promptAnswerInput" rows="3" placeholder="Write your answer here..." disabled></textarea>
+          </label>
           <div class="button-row">
             <button id="startMatchBtn" class="btn primary" type="button">Find Match</button>
-            <button id="respondPromptBtn" class="btn" type="button" disabled>Answer Prompt (+XP)</button>
+            <button id="respondPromptBtn" class="btn" type="button" disabled>Submit Answer (+XP)</button>
             <button id="reportBtn" class="btn warning" type="button" disabled>Report</button>
           </div>
         </article>
@@ -124,28 +164,6 @@
       <div class="card"><p>Rooms and activity feed remain from prior prototype behavior.</p></div>
     </section>
 
-    <section id="dashboard" class="panel" role="tabpanel">
-      <h2>Dashboard</h2>
-      <div class="grid cols-3">
-        <article class="card">
-          <h3>Daily Prompt</h3>
-          <p id="dailyPromptQuestion"></p>
-          <textarea id="dailyPromptAnswer" rows="2" placeholder="1-2 line answer"></textarea>
-          <button id="saveDailyPrompt" class="btn primary" type="button">Save Prompt</button>
-        </article>
-        <article class="card">
-          <h3>Weekly Intent</h3>
-          <select id="weeklyIntent"><option>Meet 2 thoughtful people</option><option>Practice better listening</option><option>Join 1 new community room</option></select>
-          <button id="saveWeeklyIntent" class="btn success" type="button">Set Intent</button>
-          <p id="weeklyIntentSaved" class="small"></p>
-        </article>
-        <article class="card">
-          <h3>Reflection Streak</h3>
-          <p id="reflectionStreakLabel">0 days</p>
-          <p class="small">Resets after 2 missed consecutive days.</p>
-        </article>
-      </div>
-    </section>
   </main>
 
   <dialog id="reportModal"><h3>Report this user?</h3><div class="button-row"><button id="confirmReport" class="btn warning" type="button">Confirm</button><button id="cancelReport" class="btn ghost" type="button">Cancel</button></div></dialog>
