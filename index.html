@@ -153,7 +153,30 @@
     <section id="gamification" class="panel" role="tabpanel">
       <h2>Gamification</h2>
       <div class="grid cols-3">
-        <article class="card"><h3>XP</h3><div class="xp-track"><div id="xpFill" class="xp-fill"></div></div><p id="levelLabel" class="small"></p></article>
+        <article class="card">
+          <h3>XP</h3>
+          <div class="xp-track"><div id="xpFill" class="xp-fill"></div></div>
+          <p id="levelLabel" class="small"></p>
+          <div id="avatarGrowthLabel" class="small avatar-growth-label"></div>
+        </article>
+        <article class="card">
+          <h3>Avatar Growth</h3>
+          <div id="xpAvatar" class="xp-avatar stage-young" aria-live="polite" aria-label="Cute fox avatar">
+            <div class="avatar-glow"></div>
+            <div class="animal-wrap">
+              <div class="animal-head">
+                <span class="ear left"></span>
+                <span class="ear right"></span>
+                <span class="eye left"></span>
+                <span class="eye right"></span>
+                <span class="nose"></span>
+              </div>
+              <div class="animal-body"></div>
+              <span class="tail"></span>
+              <span class="accessory"></span>
+            </div>
+          </div>
+        </article>
         <article class="card"><h3>Streak</h3><div class="streak-icon">🔥 <span id="streakBig">0</span></div></article>
         <article class="card"><h3>Badges</h3><div id="badgeList" class="badge-list"></div></article>
       </div>
