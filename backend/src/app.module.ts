@@ -7,6 +7,7 @@ import { ReflectionsModule } from './reflections/reflections.module';
 import { TrustScoreModule } from './trust-score/trust-score.module';
 import { UserConnectionsModule } from './user-connections/user-connections.module';
 import { WeeklyIntentModule } from './weekly-intent/weekly-intent.module';
+import { ProfileChatModule } from './profile-chat/profile-chat.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { WeeklyIntentModule } from './weekly-intent/weekly-intent.module';
     WeeklyIntentModule,
     TrustScoreModule,
     UserConnectionsModule,
+    ProfileChatModule,
   ],
 })
 export class AppModule {}
