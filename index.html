@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WIT Friends</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+
+  <header class="topbar">
+    <div>
+      <h1>WIT Friends</h1>
+      <p class="small">Meaningful friendships through values + guided conversations</p>
+    </div>
+    <div class="header-actions">
+      <div class="stats-pill"><span id="xpStat">XP 0</span><span id="streakStat">🔥 0</span></div>
+      <label class="toggle-wrap">
+        <span class="small">Theme</span>
+        <button id="themeToggle" class="icon-btn" type="button">🌙</button>
+      </label>
+      <button id="resetBtn" class="btn ghost" type="button">Reset</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="tabs" role="tablist" aria-label="Platform sections">
+      <button class="tab active" data-tab="setup" type="button">Account Setup</button>
+      <button class="tab" data-tab="meet" type="button">Meet Someone</button>
+      <button class="tab" data-tab="gamification" type="button">Gamification</button>
+      <button class="tab" data-tab="community" type="button">Community</button>
+      <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
+    </nav>
+
+    <section id="setup" class="panel active fade-in" role="tabpanel">
+      <h2>Account Setup Wizard</h2>
+      <div class="progress-track"><div id="wizardProgress" class="progress-fill"></div></div>
+
+      <form id="profileWizard" class="card">
+        <div class="wizard-step" data-step="1">
+          <h3>Step 1: Basic Info</h3>
+          <div class="grid cols-2">
+            <label>Nickname<input required name="nickname" placeholder="NovaBloom" /></label>
+            <label>Age Range<select required name="ageRange"><option value="">Select</option><option>18–24</option><option>25–34</option><option>35–44</option><option>45+</option></select></label>
+            <label>Location (optional)<input name="location" placeholder="City / Country" /></label>
+            <div>
+              <span class="small">Avatar</span>
+              <div class="avatar-grid" id="avatarGrid">
+                <button class="avatar-item selected" data-avatar="🦊" type="button">🦊</button>
+                <button class="avatar-item" data-avatar="🐼" type="button">🐼</button>
+                <button class="avatar-item" data-avatar="🦉" type="button">🦉</button>
+                <button class="avatar-item" data-avatar="🐙" type="button">🐙</button>
+              </div>
+              <input type="hidden" name="avatar" value="🦊" />
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-step hidden" data-step="2">
+          <h3>Step 2: Preferences</h3>
+          <div class="grid cols-2">
+            <label>Conversation depth<select name="depth"><option>Light</option><option>Moderate</option><option selected>Deep</option></select></label>
+            <label>Frequency<select name="frequency"><option>Daily</option><option selected>Weekly</option><option>Occasional</option></select></label>
+            <label>Direct ↔ Indirect
+              <div class="slider-wrap"><output data-output="directness">70</output><input type="range" min="0" max="100" value="70" name="directness" /></div>
+            </label>
+            <label>Humorous ↔ Serious
+              <div class="slider-wrap"><output data-output="humor">80</output><input type="range" min="0" max="100" value="80" name="humor" /></div>
+            </label>
+            <label class="full">Off-limits topics<input name="offLimits" value="Politics" placeholder="Politics, religion..." /></label>
+          </div>
+        </div>
+
+        <div class="wizard-step hidden" data-step="3">
+          <h3>Step 3: Values, Interests & Micro-Preferences</h3>
+          <div class="grid cols-2">
+            <label>Empathy<div class="slider-wrap"><output data-output="valueEmpathy">90</output><input type="range" min="0" max="100" value="90" name="valueEmpathy" /></div></label>
+            <label>Creativity<div class="slider-wrap"><output data-output="valueCreativity">85</output><input type="range" min="0" max="100" value="85" name="valueCreativity" /></div></label>
+            <label>Honesty<div class="slider-wrap"><output data-output="valueHonesty">70</output><input type="range" min="0" max="100" value="70" name="valueHonesty" /></div></label>
+            <label>Adventure<div class="slider-wrap"><output data-output="valueAdventure">55</output><input type="range" min="0" max="100" value="55" name="valueAdventure" /></div></label>
+            <label>Music<div class="slider-wrap"><output data-output="interestMusic">85</output><input type="range" min="0" max="100" value="85" name="interestMusic" /></div></label>
+            <label>Travel<div class="slider-wrap"><output data-output="interestTravel">70</output><input type="range" min="0" max="100" value="70" name="interestTravel" /></div></label>
+            <label>Introversion ↔ Extroversion<div class="slider-wrap"><output data-output="introExtro">45</output><input type="range" min="0" max="100" value="45" name="introExtro" /></div></label>
+            <label>Long ↔ Short conversations<div class="slider-wrap"><output data-output="longShort">72</output><input type="range" min="0" max="100" value="72" name="longShort" /></div></label>
+          </div>
+        </div>
+
+        <div class="wizard-step hidden" data-step="4">
+          <h3>Step 4: Confirm Profile</h3>
+          <div id="profileSummary" class="surface">Complete previous steps to generate summary.</div>
+          <p class="small">Privacy defaults: anonymous-first matching + consent-based profile reveal.</p>
+        </div>
+
+        <div class="wizard-actions">
+          <button id="wizardBack" class="btn ghost" type="button">Back</button>
+          <button id="wizardNext" class="btn primary" type="button">Next</button>
+          <button id="wizardSubmit" class="btn success hidden" type="submit">Save Profile</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="meet" class="panel" role="tabpanel">
+      <h2>Meet Someone</h2>
+      <div class="grid cols-2">
+        <article class="card conversation-card">
+          <div class="conversation-top">
+            <div class="avatar-large" id="anonAvatar">❔</div>
+            <div>
+              <p class="small">Anonymous match</p>
+              <p id="matchStatus">Waiting to start...</p>
+            </div>
+            <div class="ring-wrap">
+              <svg class="timer-ring" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" class="ring-bg"></circle>
+                <circle id="ringProgress" cx="60" cy="60" r="52" class="ring-progress"></circle>
+              </svg>
+              <span id="chatTimer">00:00</span>
+            </div>
+          </div>
+          <div class="surface prompt-box">
+            <span class="thought">💭</span>
+            <p id="currentPrompt">Press Find Match to start.</p>
+          </div>
+          <p class="small">Shared traits: <span id="sharedTraits">—</span></p>
+          <div class="button-row">
+            <button id="startMatchBtn" class="btn primary" type="button">Find Match</button>
+            <button id="respondPromptBtn" class="btn" type="button" disabled>Answer Prompt (+XP)</button>
+            <button id="reportBtn" class="btn warning" type="button" disabled>Report</button>
+          </div>
+        </article>
+
+        <article id="decisionGate" class="card hidden">
+          <h3>Checkpoint: Make a friend?</h3>
+          <p class="small">At 10, 20, and 30 minutes you'll get this consent gate.</p>
+          <div class="button-col">
+            <button data-decision="yes" class="btn primary" type="button">Reveal Profiles</button>
+            <button data-decision="notyet" class="btn success" type="button">Not Yet</button>
+            <button data-decision="end" class="btn ghost" type="button">End Chat</button>
+          </div>
+          <div id="friendReveal" class="surface hidden"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="gamification" class="panel" role="tabpanel">
+      <h2>Gamification</h2>
+      <div class="grid cols-3">
+        <article class="card">
+          <h3>XP & Level</h3>
+          <div class="xp-track"><div id="xpFill" class="xp-fill"></div></div>
+          <p id="levelLabel" class="small">Level 1</p>
+        </article>
+        <article class="card">
+          <h3>Streak</h3>
+          <div class="streak-icon">🔥 <span id="streakBig">0</span></div>
+        </article>
+        <article class="card">
+          <h3>Companion</h3>
+          <div class="companion" id="companion">🐣</div>
+          <p id="companionLevel" class="small">Level 1 Companion</p>
+        </article>
+        <article class="card">
+          <h3>Daily Quests</h3>
+          <ul id="dailyQuests"></ul>
+        </article>
+        <article class="card">
+          <h3>Badges</h3>
+          <div id="badgeList" class="badge-list"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="community" class="panel" role="tabpanel">
+      <h2>Community Rooms</h2>
+      <div class="grid cols-3" id="roomGrid"></div>
+      <article class="card">
+        <h3>Join by Code</h3>
+        <div class="button-row">
+          <input id="roomCodeInput" placeholder="Enter room code" />
+          <button id="joinCodeRoom" class="btn primary" type="button">Join</button>
+        </div>
+        <p id="codeRoomResult" class="small">No code used yet.</p>
+      </article>
+    </section>
+
+    <section id="dashboard" class="panel" role="tabpanel">
+      <h2>Activity Dashboard</h2>
+      <div class="grid cols-3">
+        <article class="card"><h3>Daily Prompt</h3><p>What energized you this week?</p><button id="dailyPromptBtn" class="btn primary" type="button">Claim +10 XP</button></article>
+        <article class="card"><h3>Privacy Controls</h3><label>Visibility<select id="privacyVisibility"><option>Hidden</option><option selected>Friends only</option><option>Community visible</option></select></label><label><input id="anonToggle" type="checkbox" checked> Anonymous mode for new matches</label><p id="privacySummary" class="small"></p></article>
+        <article class="card"><h3>Last 7 Days</h3><div class="chart" id="activityChart"></div></article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="reportModal">
+    <h3>Report this user?</h3>
+    <p class="small">This will end chat and block this user.</p>
+    <div class="button-row">
+      <button id="confirmReport" class="btn warning" type="button">Confirm Report</button>
+      <button id="cancelReport" class="btn ghost" type="button">Cancel</button>
+    </div>
+  </dialog>
+
+  <div id="toastRoot" class="toast-root"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
