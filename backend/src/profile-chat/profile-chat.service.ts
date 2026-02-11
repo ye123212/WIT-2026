@@ -26,7 +26,7 @@ export class ProfileChatService {
     values: {},
   };
 
-  private readonly chatByConnectionUserId = new Map<string, string>();
+  private readonly chatByUserId = new Map<string, string>();
   private readonly chatHistory = new Map<string, ChatMessage[]>();
 
   updateBasic(dto: UpdateBasicProfileDto) {
@@ -81,7 +81,7 @@ export class ProfileChatService {
   }
 
   connectChat(dto: ConnectChatDto) {
-    const existingChatId = this.chatByConnectionUserId.get(dto.connectionUserId);
+    const existingChatId = this.chatByUserId.get(dto.userId);
     if (existingChatId) {
       return {
         chatId: existingChatId,
@@ -90,7 +90,7 @@ export class ProfileChatService {
     }
 
     const chatId = randomUUID();
-    this.chatByConnectionUserId.set(dto.connectionUserId, chatId);
+    this.chatByUserId.set(dto.userId, chatId);
     this.chatHistory.set(chatId, []);
 
     return {
