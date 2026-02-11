@@ -392,12 +392,7 @@ function updateWizardUI() {
 
 function setupWizard() {
   const form = document.getElementById('profileWizard');
-  const createAccountCard = document.getElementById('createAccountCard');
-  const createAccountBtn = document.getElementById('createAccountBtn');
   const accountSetupFlow = document.getElementById('accountSetupFlow');
-  const savedProfileCard = document.getElementById('savedProfileCard');
-  const savedProfileText = document.getElementById('savedProfileText');
-  const editProfileBtn = document.getElementById('editProfileBtn');
   const profileLockedCard = document.getElementById('profileLockedCard');
 
   const fillFormFromProfile = () => {
@@ -405,59 +400,27 @@ function setupWizard() {
     for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
   };
 
-  const renderSavedProfile = () => {
-    savedProfileText.textContent = summarizeProfile(state.profile || {});
-  };
-
-  const showCreateState = () => {
-    accountSetupFlow.classList.add('hidden');
-    savedProfileCard.classList.add('hidden');
-    createAccountCard.classList.remove('hidden');
-  };
-
   const showWizard = () => {
     if (!state.authSession?.token) return toast('Please log in first.');
     accountSetupFlow.classList.remove('hidden');
-    savedProfileCard.classList.add('hidden');
-    createAccountCard.classList.add('hidden');
   };
 
-  const showSavedState = () => {
-    renderSavedProfile();
+  const hideWizard = () => {
     accountSetupFlow.classList.add('hidden');
-    createAccountCard.classList.add('hidden');
-    savedProfileCard.classList.remove('hidden');
   };
 
   const showSignedOutState = () => {
-    accountSetupFlow.classList.add('hidden');
-    savedProfileCard.classList.add('hidden');
-    createAccountCard.classList.add('hidden');
+    hideWizard();
     profileLockedCard.classList.remove('hidden');
   };
 
   const showSignedInState = () => {
     profileLockedCard.classList.add('hidden');
-    if (state.profile) showSavedState();
-    else showCreateState();
+    hideWizard();
   };
 
   if (state.authSession?.token) showSignedInState();
   else showSignedOutState();
-
-  createAccountBtn.addEventListener('click', () => {
-    state.wizardStep = 1;
-    updateWizardUI();
-    showWizard();
-  });
-
-  editProfileBtn.addEventListener('click', () => {
-    fillFormFromProfile();
-    state.wizardStep = 1;
-    updateWizardUI();
-    form.dispatchEvent(new Event('input'));
-    showWizard();
-  });
 
   document.querySelectorAll('input[type="range"]').forEach((slider) => {
     const out = document.querySelector(`[data-output="${slider.name}"]`);
@@ -481,7 +444,7 @@ function setupWizard() {
     renderAccountOverview();
     addXp(10, 'Profile saved');
     saveState();
-    showSavedState();
+    hideWizard();
   });
   updateWizardUI();
   form.dispatchEvent(new Event('input'));
