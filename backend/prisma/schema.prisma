@@ -7,6 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                String            @id
+  initiatedLinks    UserConnection[]  @relation("InitiatedConnections")
+  receivedLinks     UserConnection[]  @relation("ReceivedConnections")
+}
+
+model UserConnection {
+  id           String   @id @default(uuid())
+  userId       String
+  linkedUserId String
+  createdAt    DateTime @default(now())
+
+  user       User @relation("InitiatedConnections", fields: [userId], references: [id], onDelete: Cascade)
+  linkedUser User @relation("ReceivedConnections", fields: [linkedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, linkedUserId])
+  @@index([userId])
+  @@index([linkedUserId])
+}
+
 model MeetReflection {
   id           String   @id @default(uuid())
   meetId       String
