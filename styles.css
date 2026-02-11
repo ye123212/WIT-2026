@@ -124,3 +124,9 @@ label{display:flex;flex-direction:column;gap:8px}input,select,textarea{padding:1
 .account-overview-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .account-avatar{width:56px;height:56px;border-radius:999px;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(120deg,var(--primary),var(--secondary));border:2px solid rgba(255,255,255,.35)}
 .account-overview-name{margin:0 0 2px;font-weight:700}
+
+
+.auth-tabs{display:flex;gap:8px;margin:12px 0 14px}
+.auth-tab{flex:1;border:1px solid var(--border);background:var(--bg)}
+.auth-tab.active{background:var(--primary);color:#fff}
+.auth-error{margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,.12);color:#b91c1c;border:1px solid rgba(239,68,68,.35);font-weight:600}
