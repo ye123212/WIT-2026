@@ -87,3 +87,7 @@ label{display:flex;flex-direction:column;gap:8px}input,select,textarea{padding:1
 @keyframes slide{from{transform:translateX(15px);opacity:0}}
 @media (max-width:1024px){.tabs{grid-template-columns:repeat(3,1fr)}.cols-3{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:768px){.tabs{grid-template-columns:repeat(2,1fr)}.cols-2,.cols-3{grid-template-columns:1fr}}
+
+#requestChatLog{white-space:pre-line;line-height:1.5;min-height:72px}
+
+.notification-item{padding:8px 10px;border-bottom:1px solid var(--border)}

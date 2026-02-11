@@ -31,6 +31,7 @@
       <button class="tab" data-tab="meet" type="button">Meet Someone</button>
       <button class="tab" data-tab="gamification" type="button">Gamification</button>
       <button class="tab" data-tab="community" type="button">Community</button>
+      <button class="tab" data-tab="notifications" type="button">Notifications</button>
     </nav>
 
     <section id="setup" class="panel active" role="tabpanel">
@@ -39,6 +40,14 @@
         <h3>Account Setup</h3>
         <p class="small">Start by creating your account profile to unlock the setup wizard.</p>
         <button id="createAccountBtn" class="btn primary" type="button">Create Account</button>
+      </article>
+
+      <article class="card hidden" id="savedProfileCard">
+        <h3>Your Profile</h3>
+        <div id="savedProfileText" class="surface profile-points"></div>
+        <div class="wizard-actions">
+          <button id="editProfileBtn" class="btn primary" type="button">Edit</button>
+        </div>
       </article>
 
       <div id="accountSetupFlow" class="hidden">
@@ -121,20 +130,18 @@
             <span id="chatTimer">00:00</span>
           </div>
           <div class="surface" id="promptPanel"><p id="currentPrompt">Press Find Match to start.</p></div>
+          <label id="promptAnswerWrap" class="hidden">Type your answer
+            <textarea id="promptAnswerInput" rows="3" placeholder="Write your answer here..." disabled></textarea>
+          </label>
           <div class="button-row">
             <button id="startMatchBtn" class="btn primary" type="button">Find Match</button>
-            <button id="respondPromptBtn" class="btn" type="button" disabled>Answer Prompt (+XP)</button>
+            <button id="respondPromptBtn" class="btn" type="button" disabled>Submit Answer (+XP)</button>
             <button id="reportBtn" class="btn warning" type="button" disabled>Report</button>
           </div>
         </article>
         <article id="decisionGate" class="card hidden">
-          <h3>Checkpoint: Make a friend?</h3>
-          <div class="button-col">
-            <button data-decision="yes" class="btn primary" type="button">Reveal</button>
-            <button data-decision="notyet" class="btn success" type="button">Not Yet</button>
-            <button data-decision="end" class="btn ghost" type="button">End Chat</button>
-          </div>
-          <div id="friendReveal" class="surface hidden"></div>
+          <h3>Request Status</h3>
+          <p id="requestSentMessage" class="small">No request sent yet.</p>
         </article>
       </div>
     </section>
@@ -179,6 +186,36 @@
     <section id="community" class="panel" role="tabpanel">
       <h2>Community</h2>
       <div class="card"><p>Rooms and activity feed remain from prior prototype behavior.</p></div>
+    </section>
+
+    <section id="notifications" class="panel" role="tabpanel">
+      <h2>Notifications</h2>
+      <article class="card">
+        <h3>All Notifications</h3>
+        <p id="accountRequestNotice" class="small">No new question requests yet.</p>
+        <div id="notificationList" class="surface"></div>
+      </article>
+
+      <article class="card hidden" id="incomingRequestCard">
+        <h3>Incoming Question Request</h3>
+        <p id="incomingRequestSummary" class="small"></p>
+        <div class="button-row">
+          <button id="acceptRequestBtn" class="btn success" type="button">Accept</button>
+          <button id="rejectRequestBtn" class="btn ghost" type="button">Reject</button>
+        </div>
+      </article>
+
+      <article class="card hidden" id="requestChatCard">
+        <h3>Typing Chat (Prototype)</h3>
+        <div id="requestChatLog" class="surface"></div>
+        <label>Reply message
+          <textarea id="requestChatInput" rows="3" placeholder="Type your reply..."></textarea>
+        </label>
+        <div class="button-row">
+          <button id="sendChatReplyBtn" class="btn primary" type="button">Send Reply</button>
+          <button id="startCallBtn" class="btn ghost" type="button" disabled>Start Call (Disabled)</button>
+        </div>
+      </article>
     </section>
 
   </main>
