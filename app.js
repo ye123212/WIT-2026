@@ -113,7 +113,14 @@ function setupTabs() {
 }
 
 function summarizeProfile(data) {
-  return `${data.nickname || 'User'} • ${data.depth || 'Moderate'} depth • topics: ${data.topics || 'n/a'} • off-limits: ${data.offLimits || 'none'}`;
+  const points = [
+    `Nickname: ${data.nickname || 'User'}`,
+    `Age range: ${data.ageRange || 'Not set'}`,
+    `Depth: ${data.depth || 'Moderate'}`,
+    `Topics: ${data.topics || 'n/a'}`,
+    `Off-limits: ${data.offLimits || 'none'}`
+  ];
+  return points.join('\n');
 }
 
 function updateWizardUI() {
@@ -126,6 +133,18 @@ function updateWizardUI() {
 
 function setupWizard() {
   const form = document.getElementById('profileWizard');
+  const createAccountCard = document.getElementById('createAccountCard');
+  const createAccountBtn = document.getElementById('createAccountBtn');
+  const accountSetupFlow = document.getElementById('accountSetupFlow');
+
+  const showWizard = (shouldShow) => {
+    accountSetupFlow.classList.toggle('hidden', !shouldShow);
+    createAccountCard.classList.toggle('hidden', shouldShow);
+  };
+
+  showWizard(Boolean(state.profile));
+  createAccountBtn.addEventListener('click', () => showWizard(true));
+
   if (state.profile) {
     for (const [k, v] of Object.entries(state.profile)) if (form.elements[k]) form.elements[k].value = v;
   }
