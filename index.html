@@ -119,16 +119,8 @@
 
       <article class="card" id="accountNotificationsSection">
         <h3>Notifications</h3>
-        <p id="accountRequestNotice" class="small">No new question requests yet.</p>
+        <p id="accountRequestNotice" class="small">No new notifications yet.</p>
         <div id="notificationList" class="surface"></div>
-        <article class="card hidden" id="incomingRequestCard">
-          <h3>Incoming Question Request</h3>
-          <p id="incomingRequestSummary" class="small"></p>
-          <div class="button-row">
-            <button id="acceptRequestBtn" class="btn success" type="button">Accept</button>
-            <button id="rejectRequestBtn" class="btn ghost" type="button">Reject</button>
-          </div>
-        </article>
       </article>
 
     </section>
@@ -211,16 +203,23 @@
 
         <article class="card" id="directChatSection">
           <h3>Direct Chat</h3>
-          <p class="small">1:1 chat opens here after a request is accepted.</p>
-          <article class="card hidden" id="requestChatCard">
-            <h3>Typing Chat (Prototype)</h3>
-            <div id="requestChatLog" class="surface"></div>
-            <label>Reply message
-              <textarea id="requestChatInput" rows="3" placeholder="Type your reply..."></textarea>
-            </label>
-            <div class="button-row">
-              <button id="sendChatReplyBtn" class="btn primary" type="button">Send Reply</button>
-              <button id="startCallBtn" class="btn ghost" type="button" disabled>Start Call (Disabled)</button>
+          <p class="small">Latest approved notification appears as a compact thread card.</p>
+          <div id="directChatCollapsed" class="direct-chat-collapsed" role="button" tabindex="0" aria-expanded="false">
+            <div>
+              <p id="directChatSender" class="direct-chat-sender">No active chats</p>
+              <p id="directChatSummary" class="small">Give a notification a thumbs up to start a thread.</p>
+            </div>
+            <div class="direct-chat-meta">
+              <span id="directChatUnread" class="unread-dot hidden" aria-hidden="true"></span>
+              <span id="directChatTime" class="small">—</span>
+            </div>
+          </div>
+
+          <article id="directChatPanel" class="direct-chat-panel" aria-hidden="true">
+            <div id="directChatHistory" class="direct-chat-history"></div>
+            <div class="direct-chat-input-row">
+              <input id="directChatInput" type="text" placeholder="Type a message..." />
+              <button id="directChatSendBtn" class="btn primary" type="button">Send</button>
             </div>
           </article>
         </article>

@@ -32,7 +32,9 @@ const state = {
   dailyPromptAnswers: JSON.parse(localStorage.getItem(STORAGE.dailyPromptAnswers) || '{}'),
   activeRequest: null,
   requestStatus: 'idle',
-  notifications: []
+  notifications: [],
+  directChats: [],
+  activeDirectChatId: null
 };
 
 const prompts = [
@@ -328,11 +330,168 @@ function updateRequestStatus(message, show = true) {
   gate.classList.toggle('hidden', !show);
 }
 
+function sendPositiveFeedback(notificationId) {
+  emitEvent('NOTIFICATION_FEEDBACK_POSITIVE', { notification_id: notificationId });
+}
+
+function sendNegativeFeedback(notificationId) {
+  emitEvent('NOTIFICATION_FEEDBACK_NEGATIVE', { notification_id: notificationId });
+}
+
+function formatChatTime(date = new Date()) {
+  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+}
+
+function getOrCreateDirectChat(notification) {
+  let thread = state.directChats.find((chat) => chat.sender === notification.sender);
+  if (!thread) {
+    thread = {
+      id: uuid(),
+      sender: notification.sender,
+      messages: [],
+      unread: false,
+      updatedAt: new Date().toISOString()
+    };
+    state.directChats.unshift(thread);
+  }
+
+  const alreadyHasSeed = thread.messages.some((msg) => msg.sourceNotificationId === notification.id);
+  if (!alreadyHasSeed) {
+    thread.messages.push({
+      id: uuid(),
+      from: 'sender',
+      text: notification.answer,
+      createdAt: new Date().toISOString(),
+      sourceNotificationId: notification.id
+    });
+  }
+  thread.updatedAt = new Date().toISOString();
+  state.directChats = [thread, ...state.directChats.filter((chat) => chat.id !== thread.id)];
+  return thread;
+}
+
+function renderDirectChatCollapsed() {
+  const card = document.getElementById('directChatCollapsed');
+  const sender = document.getElementById('directChatSender');
+  const summary = document.getElementById('directChatSummary');
+  const time = document.getElementById('directChatTime');
+  const unread = document.getElementById('directChatUnread');
+  const latest = state.directChats[0];
+
+  if (!latest) {
+    sender.textContent = 'No active chats';
+    summary.textContent = 'Give a notification a thumbs up to start a thread.';
+    time.textContent = '—';
+    unread.classList.add('hidden');
+    card.classList.add('is-empty');
+    return;
+  }
+
+  const lastMessage = latest.messages[latest.messages.length - 1];
+  sender.textContent = latest.sender;
+  summary.textContent = lastMessage ? lastMessage.text : 'Tap to view conversation';
+  time.textContent = formatChatTime(new Date(latest.updatedAt));
+  unread.classList.toggle('hidden', !latest.unread);
+  card.classList.remove('is-empty');
+}
+
+function renderDirectChatHistory() {
+  const history = document.getElementById('directChatHistory');
+  history.innerHTML = '';
+
+  if (!state.activeDirectChatId) {
+    history.innerHTML = '<p class="small">Tap the compact chat card to expand the latest thread.</p>';
+    return;
+  }
+
+  const active = state.directChats.find((chat) => chat.id === state.activeDirectChatId);
+  if (!active) return;
+
+  active.messages.forEach((message) => {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${message.from === 'user' ? 'from-user' : 'from-sender'}`;
+    bubble.textContent = message.text;
+    history.appendChild(bubble);
+  });
+  history.scrollTop = history.scrollHeight;
+}
+
+function setDirectChatExpanded(expanded) {
+  const panel = document.getElementById('directChatPanel');
+  const collapsed = document.getElementById('directChatCollapsed');
+  panel.classList.toggle('expanded', expanded);
+  collapsed.setAttribute('aria-expanded', String(expanded));
+  panel.setAttribute('aria-hidden', String(!expanded));
+  if (expanded) renderDirectChatHistory();
+}
+
+function openChatForNotification(notification) {
+  const thread = getOrCreateDirectChat(notification);
+  state.activeDirectChatId = thread.id;
+  thread.unread = false;
+  renderDirectChatCollapsed();
+  setDirectChatExpanded(true);
+  updateRequestStatus('Positive feedback received. Continue the conversation in Direct Chat.', true);
+
+  document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+  const chatTab = document.querySelector('.tab[data-tab="community"]');
+  if (chatTab) chatTab.classList.add('active');
+  document.getElementById('community').classList.add('active');
+}
+
+function animateNotificationToChat(row, notification) {
+  const target = document.getElementById('directChatCollapsed');
+  if (!target || !row) {
+    openChatForNotification(notification);
+    renderNotifications();
+    return;
+  }
+
+  const sourceRect = row.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const clone = row.cloneNode(true);
+  clone.classList.add('notification-flyer');
+  clone.style.width = `${sourceRect.width}px`;
+  clone.style.left = `${sourceRect.left}px`;
+  clone.style.top = `${sourceRect.top}px`;
+  document.body.appendChild(clone);
+
+  row.classList.add('is-dampened');
+
+  requestAnimationFrame(() => {
+    clone.style.transform = `translate(${targetRect.left - sourceRect.left}px, ${targetRect.top - sourceRect.top}px) scale(0.72)`;
+    clone.style.opacity = '0.15';
+  });
+
+  setTimeout(() => {
+    clone.remove();
+    openChatForNotification(notification);
+    renderNotifications();
+  }, 540);
+}
+
+function applyNotificationFeedback(notification, type, row) {
+  notification.feedback = type;
+  notification.status = type === 'positive' ? 'Acknowledged' : 'Dismissed';
+
+  if (type === 'positive') {
+    state.activeRequest = notification;
+    sendPositiveFeedback(notification.id);
+    animateNotificationToChat(row, notification);
+    return;
+  }
+
+  sendNegativeFeedback(notification.id);
+  row.classList.add('is-dampened');
+  setTimeout(() => renderNotifications(), 320);
+}
+
 function renderNotifications() {
   const list = document.getElementById('notificationList');
   const notice = document.getElementById('accountRequestNotice');
   if (!state.notifications.length) {
-    notice.textContent = 'No new question requests yet.';
+    notice.textContent = 'No new notifications yet.';
     list.textContent = 'No notifications.';
     return;
   }
@@ -341,25 +500,37 @@ function renderNotifications() {
   state.notifications.forEach((n) => {
     const row = document.createElement('div');
     row.className = 'notification-item';
-    row.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}`;
+    const text = document.createElement('p');
+    text.className = 'notification-text';
+    const notificationTime = n.createdAt ? formatChatTime(new Date(n.createdAt)) : '';
+    text.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}${notificationTime ? ` • ${notificationTime}` : ''}`;
+
+    const actions = document.createElement('div');
+    actions.className = 'notification-actions';
+    const goodBtn = document.createElement('button');
+    goodBtn.type = 'button';
+    goodBtn.className = `feedback-btn good ${n.feedback === 'positive' ? 'selected' : ''}`;
+    goodBtn.setAttribute('aria-label', 'Positive feedback');
+    goodBtn.textContent = '👍';
+
+    const badBtn = document.createElement('button');
+    badBtn.type = 'button';
+    badBtn.className = `feedback-btn bad ${n.feedback === 'negative' ? 'selected' : ''}`;
+    badBtn.setAttribute('aria-label', 'Negative feedback');
+    badBtn.textContent = '👎';
+
+    if (n.feedback) {
+      goodBtn.disabled = true;
+      badBtn.disabled = true;
+    } else {
+      goodBtn.addEventListener('click', () => applyNotificationFeedback(n, 'positive', row));
+      badBtn.addEventListener('click', () => applyNotificationFeedback(n, 'negative', row));
+    }
+
+    actions.append(goodBtn, badBtn);
+    row.append(text, actions);
     list.appendChild(row);
   });
-}
-
-function renderIncomingRequest() {
-  const incomingCard = document.getElementById('incomingRequestCard');
-  const incomingSummary = document.getElementById('incomingRequestSummary');
-  const pending = state.notifications.find((x) => x.status === 'Pending');
-  if (!pending) {
-    state.activeRequest = null;
-    incomingCard.classList.add('hidden');
-    renderNotifications();
-    return;
-  }
-  state.activeRequest = pending;
-  incomingSummary.textContent = `Question asked by ${pending.sender}: "${pending.prompt}" • Submitted answer: "${pending.answer}" • Status: ${pending.status}`;
-  incomingCard.classList.remove('hidden');
-  renderNotifications();
 }
 
 function startMeet() {
@@ -375,8 +546,7 @@ function startMeet() {
   state.meetId = uuid();
   resetMeetTimerUI();
   state.requestStatus = 'idle';
-  document.getElementById('requestChatCard').classList.add('hidden');
-  renderIncomingRequest();
+  renderNotifications();
   updateRequestStatus('No request sent yet.', false);
   document.getElementById('currentPrompt').textContent = prompts[0];
   showAnswerInput();
@@ -404,7 +574,6 @@ function endMeet(reason) {
   hideAnswerInput();
   document.getElementById('reportBtn').disabled = true;
   document.getElementById('decisionGate').classList.add('hidden');
-  document.getElementById('requestChatCard').classList.add('hidden');
   emitEvent('MEET_ENDED', { meet_id: state.meetId, reason });
   onMeetEnd(state.meetId, getUserId(), reason);
 }
@@ -417,7 +586,7 @@ function setupMeet() {
     if (!answer) return toast('Please type an answer before submitting.');
 
     const currentPrompt = document.getElementById('currentPrompt').textContent;
-    const notification = { id: uuid(), sender: getUserId(), prompt: currentPrompt, answer, status: 'Pending' };
+    const notification = { id: uuid(), sender: getUserId(), prompt: currentPrompt, answer, status: 'Pending', createdAt: new Date().toISOString() };
     state.notifications.unshift(notification);
     state.activeRequest = notification;
     state.requestStatus = 'sent';
@@ -427,50 +596,65 @@ function setupMeet() {
     hideAnswerInput();
     document.getElementById('respondPromptBtn').disabled = true;
     updateRequestStatus('Request sent successfully. Waiting for receiver action.', true);
-    renderIncomingRequest();
+    renderNotifications();
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
   document.getElementById('reportBtn').addEventListener('click', () => reportModal.showModal());
   document.getElementById('cancelReport').addEventListener('click', () => reportModal.close());
   document.getElementById('confirmReport').addEventListener('click', () => { reportModal.close(); endMeet('left_early'); });
-  document.getElementById('acceptRequestBtn').addEventListener('click', () => {
-    if (!state.activeRequest) return;
-    state.activeRequest.status = 'Accepted';
-    document.getElementById('incomingRequestSummary').textContent = `Accepted question from ${state.activeRequest.sender}: "${state.activeRequest.prompt}" • Sender answer: "${state.activeRequest.answer}"`;
-    renderNotifications();
-    const chatLog = document.getElementById('requestChatLog');
-    chatLog.textContent = `${state.activeRequest.sender}: ${state.activeRequest.answer}`;
-    document.getElementById('requestChatCard').classList.remove('hidden');
-    updateRequestStatus('Receiver accepted the request. Typing chat opened.', true);
-    document.getElementById('incomingRequestCard').classList.add('hidden');
+}
 
-    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
-    const chatTab = document.querySelector('.tab[data-tab="community"]');
-    if (chatTab) chatTab.classList.add('active');
-    document.getElementById('community').classList.add('active');
-  });
+function setupDirectChat() {
+  const collapsed = document.getElementById('directChatCollapsed');
+  const panel = document.getElementById('directChatPanel');
+  const input = document.getElementById('directChatInput');
+  const sendBtn = document.getElementById('directChatSendBtn');
 
-  document.getElementById('rejectRequestBtn').addEventListener('click', () => {
-    if (!state.activeRequest) return;
-    state.activeRequest.status = 'Rejected';
-    document.getElementById('incomingRequestCard').classList.add('hidden');
-    document.getElementById('requestChatCard').classList.add('hidden');
-    updateRequestStatus('Receiver rejected the request.', true);
-    state.activeRequest = null;
-    renderIncomingRequest();
-  });
+  const togglePanel = () => {
+    if (!state.directChats.length) return;
+    const isExpanded = panel.classList.contains('expanded');
+    if (!state.activeDirectChatId) state.activeDirectChatId = state.directChats[0].id;
+    setDirectChatExpanded(!isExpanded);
+  };
 
-  document.getElementById('sendChatReplyBtn').addEventListener('click', () => {
-    const input = document.getElementById('requestChatInput');
+  const sendMessage = () => {
     const text = input.value.trim();
-    if (!text) return toast('Type a reply message first.');
-    const chatLog = document.getElementById('requestChatLog');
-    chatLog.textContent += `
-Receiver: ${text}`;
+    if (!text) return;
+    const active = state.directChats.find((chat) => chat.id === state.activeDirectChatId) || state.directChats[0];
+    if (!active) return toast('No direct chat available yet.');
+
+    active.messages.push({
+      id: uuid(),
+      from: 'user',
+      text,
+      createdAt: new Date().toISOString()
+    });
+    active.updatedAt = new Date().toISOString();
+    state.directChats = [active, ...state.directChats.filter((chat) => chat.id !== active.id)];
+    state.activeDirectChatId = active.id;
     input.value = '';
+    renderDirectChatCollapsed();
+    renderDirectChatHistory();
+  };
+
+  collapsed.addEventListener('click', togglePanel);
+  collapsed.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      togglePanel();
+    }
   });
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  renderDirectChatCollapsed();
+  setDirectChatExpanded(false);
 }
 
 // Reflection flow
@@ -593,7 +777,6 @@ function setupReflectionSubmit() {
 
 function setupDashboardData() {
   renderNotifications();
-  renderIncomingRequest();
   document.getElementById('dailyPromptQuestion').textContent = DAILY_PROMPT.question;
   document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
     const ans = document.getElementById('dailyPromptAnswer').value.trim();
@@ -635,6 +818,7 @@ setupTabs();
 setupThemeAndReset();
 setupWizard();
 setupMeet();
+setupDirectChat();
 setupReflectionSubmit();
 setupDashboardData();
 refreshStats();
