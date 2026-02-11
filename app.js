@@ -87,9 +87,9 @@ function updateAvatarGrowth() {
   avatar.classList.remove('stage-young', 'stage-growing', 'stage-mature');
   avatar.classList.add(stage);
 
-  if (stage === 'stage-young') growthLabel.textContent = 'XP 1–10: Baby fox form';
-  else if (stage === 'stage-growing') growthLabel.textContent = 'XP 11–20: Growing fox with extra detail';
-  else growthLabel.textContent = 'XP 21+: Fully grown fox with playful style';
+  if (stage === 'stage-young') growthLabel.textContent = 'XP 1–10: Baby panda form';
+  else if (stage === 'stage-growing') growthLabel.textContent = 'XP 11–20: Growing panda with extra detail';
+  else growthLabel.textContent = 'XP 21+: Fully grown panda with playful style';
 }
 
 function refreshStats() {
