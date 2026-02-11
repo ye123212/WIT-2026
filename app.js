@@ -328,11 +328,79 @@ function updateRequestStatus(message, show = true) {
   gate.classList.toggle('hidden', !show);
 }
 
+function sendPositiveFeedback(notificationId) {
+  emitEvent('NOTIFICATION_FEEDBACK_POSITIVE', { notification_id: notificationId });
+}
+
+function sendNegativeFeedback(notificationId) {
+  emitEvent('NOTIFICATION_FEEDBACK_NEGATIVE', { notification_id: notificationId });
+}
+
+function openChatForNotification(notification) {
+  const chatLog = document.getElementById('requestChatLog');
+  chatLog.textContent = `${notification.sender}: ${notification.answer}`;
+  document.getElementById('requestChatCard').classList.remove('hidden');
+  updateRequestStatus('Positive feedback received. Reply in Direct Chat.', true);
+
+  document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+  const chatTab = document.querySelector('.tab[data-tab="community"]');
+  if (chatTab) chatTab.classList.add('active');
+  document.getElementById('community').classList.add('active');
+}
+
+function animateNotificationToChat(row, notification) {
+  const target = document.getElementById('directChatSection');
+  if (!target || !row) {
+    openChatForNotification(notification);
+    renderNotifications();
+    return;
+  }
+
+  const sourceRect = row.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const clone = row.cloneNode(true);
+  clone.classList.add('notification-flyer');
+  clone.style.width = `${sourceRect.width}px`;
+  clone.style.left = `${sourceRect.left}px`;
+  clone.style.top = `${sourceRect.top}px`;
+  document.body.appendChild(clone);
+
+  row.classList.add('is-dampened');
+
+  requestAnimationFrame(() => {
+    clone.style.transform = `translate(${targetRect.left - sourceRect.left}px, ${targetRect.top - sourceRect.top}px) scale(0.72)`;
+    clone.style.opacity = '0.15';
+  });
+
+  setTimeout(() => {
+    clone.remove();
+    openChatForNotification(notification);
+    renderNotifications();
+  }, 540);
+}
+
+function applyNotificationFeedback(notification, type, row) {
+  notification.feedback = type;
+  notification.status = type === 'positive' ? 'Acknowledged' : 'Dismissed';
+
+  if (type === 'positive') {
+    state.activeRequest = notification;
+    sendPositiveFeedback(notification.id);
+    animateNotificationToChat(row, notification);
+    return;
+  }
+
+  sendNegativeFeedback(notification.id);
+  row.classList.add('is-dampened');
+  setTimeout(() => renderNotifications(), 320);
+}
+
 function renderNotifications() {
   const list = document.getElementById('notificationList');
   const notice = document.getElementById('accountRequestNotice');
   if (!state.notifications.length) {
-    notice.textContent = 'No new question requests yet.';
+    notice.textContent = 'No new notifications yet.';
     list.textContent = 'No notifications.';
     return;
   }
@@ -341,25 +409,36 @@ function renderNotifications() {
   state.notifications.forEach((n) => {
     const row = document.createElement('div');
     row.className = 'notification-item';
-    row.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}`;
+    const text = document.createElement('p');
+    text.className = 'notification-text';
+    text.textContent = `${n.sender} • Answer: "${n.answer}" • Status: ${n.status}`;
+
+    const actions = document.createElement('div');
+    actions.className = 'notification-actions';
+    const goodBtn = document.createElement('button');
+    goodBtn.type = 'button';
+    goodBtn.className = `feedback-btn good ${n.feedback === 'positive' ? 'selected' : ''}`;
+    goodBtn.setAttribute('aria-label', 'Positive feedback');
+    goodBtn.textContent = '👍';
+
+    const badBtn = document.createElement('button');
+    badBtn.type = 'button';
+    badBtn.className = `feedback-btn bad ${n.feedback === 'negative' ? 'selected' : ''}`;
+    badBtn.setAttribute('aria-label', 'Negative feedback');
+    badBtn.textContent = '👎';
+
+    if (n.feedback) {
+      goodBtn.disabled = true;
+      badBtn.disabled = true;
+    } else {
+      goodBtn.addEventListener('click', () => applyNotificationFeedback(n, 'positive', row));
+      badBtn.addEventListener('click', () => applyNotificationFeedback(n, 'negative', row));
+    }
+
+    actions.append(goodBtn, badBtn);
+    row.append(text, actions);
     list.appendChild(row);
   });
-}
-
-function renderIncomingRequest() {
-  const incomingCard = document.getElementById('incomingRequestCard');
-  const incomingSummary = document.getElementById('incomingRequestSummary');
-  const pending = state.notifications.find((x) => x.status === 'Pending');
-  if (!pending) {
-    state.activeRequest = null;
-    incomingCard.classList.add('hidden');
-    renderNotifications();
-    return;
-  }
-  state.activeRequest = pending;
-  incomingSummary.textContent = `Question asked by ${pending.sender}: "${pending.prompt}" • Submitted answer: "${pending.answer}" • Status: ${pending.status}`;
-  incomingCard.classList.remove('hidden');
-  renderNotifications();
 }
 
 function startMeet() {
@@ -376,7 +455,7 @@ function startMeet() {
   resetMeetTimerUI();
   state.requestStatus = 'idle';
   document.getElementById('requestChatCard').classList.add('hidden');
-  renderIncomingRequest();
+  renderNotifications();
   updateRequestStatus('No request sent yet.', false);
   document.getElementById('currentPrompt').textContent = prompts[0];
   showAnswerInput();
@@ -427,41 +506,13 @@ function setupMeet() {
     hideAnswerInput();
     document.getElementById('respondPromptBtn').disabled = true;
     updateRequestStatus('Request sent successfully. Waiting for receiver action.', true);
-    renderIncomingRequest();
+    renderNotifications();
     addXp(5, 'Prompt response');
   });
   const reportModal = document.getElementById('reportModal');
   document.getElementById('reportBtn').addEventListener('click', () => reportModal.showModal());
   document.getElementById('cancelReport').addEventListener('click', () => reportModal.close());
   document.getElementById('confirmReport').addEventListener('click', () => { reportModal.close(); endMeet('left_early'); });
-  document.getElementById('acceptRequestBtn').addEventListener('click', () => {
-    if (!state.activeRequest) return;
-    state.activeRequest.status = 'Accepted';
-    document.getElementById('incomingRequestSummary').textContent = `Accepted question from ${state.activeRequest.sender}: "${state.activeRequest.prompt}" • Sender answer: "${state.activeRequest.answer}"`;
-    renderNotifications();
-    const chatLog = document.getElementById('requestChatLog');
-    chatLog.textContent = `${state.activeRequest.sender}: ${state.activeRequest.answer}`;
-    document.getElementById('requestChatCard').classList.remove('hidden');
-    updateRequestStatus('Receiver accepted the request. Typing chat opened.', true);
-    document.getElementById('incomingRequestCard').classList.add('hidden');
-
-    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
-    const chatTab = document.querySelector('.tab[data-tab="community"]');
-    if (chatTab) chatTab.classList.add('active');
-    document.getElementById('community').classList.add('active');
-  });
-
-  document.getElementById('rejectRequestBtn').addEventListener('click', () => {
-    if (!state.activeRequest) return;
-    state.activeRequest.status = 'Rejected';
-    document.getElementById('incomingRequestCard').classList.add('hidden');
-    document.getElementById('requestChatCard').classList.add('hidden');
-    updateRequestStatus('Receiver rejected the request.', true);
-    state.activeRequest = null;
-    renderIncomingRequest();
-  });
-
   document.getElementById('sendChatReplyBtn').addEventListener('click', () => {
     const input = document.getElementById('requestChatInput');
     const text = input.value.trim();
@@ -593,7 +644,6 @@ function setupReflectionSubmit() {
 
 function setupDashboardData() {
   renderNotifications();
-  renderIncomingRequest();
   document.getElementById('dailyPromptQuestion').textContent = DAILY_PROMPT.question;
   document.getElementById('saveDailyPrompt').addEventListener('click', async () => {
     const ans = document.getElementById('dailyPromptAnswer').value.trim();
