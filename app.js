@@ -463,6 +463,10 @@ function setupWizard() {
   const wizardSubmitBtn = document.getElementById('wizardSubmit');
 
   async function submitProfileStep(step, formData) {
+    if (!USE_BACKEND) {
+      return { success: true, skipped: true };
+    }
+
     const basicPayload = {
       nickname: String(formData.nickname || '').trim(),
       ageRange: String(formData.ageRange || '').trim(),
