@@ -5,6 +5,7 @@ import { QueueModule } from './queue/queue.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ReflectionsModule } from './reflections/reflections.module';
 import { TrustScoreModule } from './trust-score/trust-score.module';
+import { UserConnectionsModule } from './user-connections/user-connections.module';
 import { WeeklyIntentModule } from './weekly-intent/weekly-intent.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { WeeklyIntentModule } from './weekly-intent/weekly-intent.module';
     DailyPromptsModule,
     WeeklyIntentModule,
     TrustScoreModule,
+    UserConnectionsModule,
   ],
 })
 export class AppModule {}

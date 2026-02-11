@@ -1,16 +1,6 @@
 const STORAGE = {
-  profile: 'witProfile',
-  authSession: 'witAuthSession',
-  accounts: 'witAccounts',
-  xp: 'witXp',
-  streak: 'witStreak',
-  badges: 'witBadges',
-  theme: 'witTheme',
-  meetCount: 'witMeetCount',
-  reflectionHistory: 'witReflectionHistory',
-  weeklyIntent: 'witWeeklyIntent',
-  dailyPromptAnswers:'witDailyPromptAnswers',
-  trust:'witTrust'
+  profile: 'witProfile', xp: 'witXp', streak: 'witStreak', badges: 'witBadges', theme: 'witTheme',
+  meetCount: 'witMeetCount', reflectionHistory: 'witReflectionHistory', weeklyIntent: 'witWeeklyIntent', dailyPromptAnswers:'witDailyPromptAnswers', trust:'witTrust', userConnections: 'witUserConnections'
 };
 
 const XP_REWARDS = { completeReflection: 20, detailedFeedback: 10, dailyReflectionStreak: 5 };
@@ -22,7 +12,8 @@ const db = {
   meet_reflections: [], // {id,meet_id,user_id,vibe_score,meet_outcome,feedback_tags,created_at}
   daily_prompt: [DAILY_PROMPT],
   user_weekly_intent: [], // {user_id, intent}
-  trust_score: [] // {user_id, score}
+  trust_score: [], // {user_id, score}
+  user_connections: [] // {user_id, linked_user_id}
 };
 
 const state = {
@@ -46,7 +37,8 @@ const state = {
   requestStatus: 'idle',
   notifications: [],
   directChats: [],
-  activeDirectChatId: null
+  activeDirectChatId: null,
+  userConnections: JSON.parse(localStorage.getItem(STORAGE.userConnections) || '[]')
 };
 
 
@@ -69,7 +61,26 @@ const apiClient = window.createApiClient({
       if (idx >= 0) db.user_weekly_intent[idx] = body; else db.user_weekly_intent.push(body);
       return { success: true };
     },
-    getTrustScore: async (userId) => ({ user_id: userId, score: getTrustScore(userId), cooldown_applied: false })
+    getTrustScore: async (userId) => ({ user_id: userId, score: getTrustScore(userId), cooldown_applied: false }),
+    linkUsers: async (userId, linkedUserId) => {
+      const linksToStore = [
+        { user_id: userId, linked_user_id: linkedUserId },
+        { user_id: linkedUserId, linked_user_id: userId }
+      ];
+
+      linksToStore.forEach((link) => {
+        const exists = db.user_connections.some((entry) => entry.user_id === link.user_id && entry.linked_user_id === link.linked_user_id);
+        if (!exists) db.user_connections.push(link);
+      });
+
+      return { success: true };
+    },
+    getUserConnections: async (userId) => ({
+      userId,
+      connections: db.user_connections
+        .filter((entry) => entry.user_id === userId)
+        .map((entry) => entry.linked_user_id)
+    })
   }
 });
 
@@ -90,6 +101,7 @@ function saveState() {
   localStorage.setItem(STORAGE.meetCount, String(state.meetCount));
   localStorage.setItem(STORAGE.reflectionHistory, JSON.stringify(state.reflectionHistory));
   localStorage.setItem(STORAGE.dailyPromptAnswers, JSON.stringify(state.dailyPromptAnswers));
+  localStorage.setItem(STORAGE.userConnections, JSON.stringify(state.userConnections));
 }
 
 function emitEvent(name, payload = {}) {
@@ -531,6 +543,41 @@ function formatChatTime(date = new Date()) {
   return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
 }
 
+function renderConnectionsList() {
+  const list = document.getElementById('connectionsList');
+  if (!list) return;
+
+  if (!state.userConnections.length) {
+    list.innerHTML = '<li class="small">No connections yet. Approve a notification to create one.</li>';
+    return;
+  }
+
+  list.innerHTML = '';
+  state.userConnections.forEach((connectionUserId) => {
+    const item = document.createElement('li');
+    item.textContent = connectionUserId;
+    list.appendChild(item);
+  });
+}
+
+async function linkUsersAndRefreshConnections(userId, linkedUserId) {
+  const response = await apiClient.linkUsers(userId, linkedUserId);
+  if (!response?.success) return;
+
+  const connections = await apiClient.getUserConnections(userId);
+  state.userConnections = connections.connections || [];
+  saveState();
+  renderConnectionsList();
+}
+
+async function loadConnections() {
+  const userId = getUserId();
+  const connections = await apiClient.getUserConnections(userId);
+  state.userConnections = connections.connections || [];
+  saveState();
+  renderConnectionsList();
+}
+
 function getOrCreateDirectChat(notification) {
   let thread = state.directChats.find((chat) => chat.sender === notification.sender);
   if (!thread) {
@@ -614,13 +661,13 @@ function setDirectChatExpanded(expanded) {
   if (expanded) renderDirectChatHistory();
 }
 
-function openChatForNotification(notification) {
+function openChatForNotification(notification, linkedUserId = notification.sender) {
   const thread = getOrCreateDirectChat(notification);
   state.activeDirectChatId = thread.id;
   thread.unread = false;
   renderDirectChatCollapsed();
   setDirectChatExpanded(true);
-  updateRequestStatus('Positive feedback received. Continue the conversation in Direct Chat.', true);
+  updateRequestStatus(`Connected with ${linkedUserId}. Continue the conversation in Direct Chat.`, true);
 
   document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
   document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
@@ -629,7 +676,7 @@ function openChatForNotification(notification) {
   document.getElementById('community').classList.add('active');
 }
 
-function animateNotificationToChat(row, notification) {
+async function animateNotificationToChat(row, notification) {
   const target = document.getElementById('directChatCollapsed');
   if (!target || !row) {
     openChatForNotification(notification);
@@ -660,13 +707,15 @@ function animateNotificationToChat(row, notification) {
   }, 540);
 }
 
-function applyNotificationFeedback(notification, type, row) {
+async function applyNotificationFeedback(notification, type, row) {
   notification.feedback = type;
   notification.status = type === 'positive' ? 'Acknowledged' : 'Dismissed';
 
   if (type === 'positive') {
     state.activeRequest = notification;
     sendPositiveFeedback(notification.id);
+    await linkUsersAndRefreshConnections(getUserId(), notification.sender);
+    toast(`Connected with ${notification.sender}`);
     animateNotificationToChat(row, notification);
     return;
   }
@@ -843,6 +892,7 @@ function setupDirectChat() {
   });
 
   renderDirectChatCollapsed();
+  renderConnectionsList();
   setDirectChatExpanded(false);
 }
 
@@ -1005,5 +1055,6 @@ setupMeet();
 setupDirectChat();
 setupReflectionSubmit();
 setupDashboardData();
+loadConnections();
 refreshStats();
 saveState();

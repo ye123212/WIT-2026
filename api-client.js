@@ -4,6 +4,8 @@
  * @property {(payload: {prompt_id:string,user_id:string,answer:string}) => Promise<{success:boolean}>} submitDailyPromptAnswer
  * @property {(payload: {user_id:string,intent:string}) => Promise<{success:boolean}>} submitWeeklyIntent
  * @property {(userId: string) => Promise<{user_id:string,score:number,cooldown_applied:boolean}>} getTrustScore
+ * @property {(userId: string, linkedUserId: string) => Promise<{success:boolean}>} linkUsers
+ * @property {(userId: string) => Promise<{userId:string,connections:string[]}>} getUserConnections
  */
 
 /**
@@ -95,6 +97,36 @@ function createApiClient(options = {}) {
       }
       if (fallback.getTrustScore) return fallback.getTrustScore(userId);
       return { user_id: userId, score: 50, cooldown_applied: false };
+    },
+
+    async linkUsers(userId, linkedUserId) {
+      const payload = { userId, linkedUserId };
+      if (useNetwork) {
+        try {
+          return await request('/user-connections/link', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+        } catch {
+          if (fallback.linkUsers) return fallback.linkUsers(userId, linkedUserId);
+          return { success: false };
+        }
+      }
+      if (fallback.linkUsers) return fallback.linkUsers(userId, linkedUserId);
+      return { success: false };
+    },
+
+    async getUserConnections(userId) {
+      if (useNetwork) {
+        try {
+          return await request(`/user-connections/${encodeURIComponent(userId)}`, { method: 'GET' });
+        } catch {
+          if (fallback.getUserConnections) return fallback.getUserConnections(userId);
+          return { userId, connections: [] };
+        }
+      }
+      if (fallback.getUserConnections) return fallback.getUserConnections(userId);
+      return { userId, connections: [] };
     }
   };
 }

@@ -89,6 +89,11 @@ label{display:flex;flex-direction:column;gap:8px}input,select,textarea{padding:1
 @media (max-width:1024px){.tabs{grid-template-columns:repeat(3,1fr)}.cols-3{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:768px){.tabs{grid-template-columns:repeat(2,1fr)}.cols-2,.cols-3{grid-template-columns:1fr}}
 
+.connections-card{margin:8px 0 12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+.connections-card h4{margin:0 0 8px;font-size:14px}
+.connections-list{margin:0;padding-left:18px;display:grid;gap:6px}
+.connections-list li{line-height:1.4}
+
 .direct-chat-collapsed{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);cursor:pointer;transition:transform .2s ease,background .2s ease}
 .direct-chat-collapsed:hover{transform:translateY(-1px)}
 .direct-chat-collapsed.is-empty{opacity:.88}
